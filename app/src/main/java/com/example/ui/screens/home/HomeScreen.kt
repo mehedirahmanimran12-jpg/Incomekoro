@@ -45,6 +45,7 @@ import com.example.ui.theme.*
 @Composable
 fun HomeScreen(
     repository: AppRepository,
+    onOpenMenu: () -> Unit = {},
     onNavigateToTasks: () -> Unit,
     onNavigateToDeposit: () -> Unit,
     onNavigateToWithdraw: () -> Unit,
@@ -85,12 +86,13 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 1. Top Bar Header (Full width)
+            // 1. Top Bar Header (Full width) with 3-line hamburger menu to the left of profile
             item(span = { GridItemSpan(3) }) {
                 TopAppBarScreenshotStyle(
                     name = displayName,
                     affiliateId = affiliateId,
                     unreadCount = unreadNotifsCount,
+                    onMenuClick = onOpenMenu,
                     onProfileClick = onNavigateToProfile,
                     onNotificationClick = onNavigateToNotifications
                 )
@@ -223,6 +225,7 @@ fun TopAppBarScreenshotStyle(
     name: String,
     affiliateId: String,
     unreadCount: Int,
+    onMenuClick: () -> Unit = {},
     onProfileClick: () -> Unit,
     onNotificationClick: () -> Unit
 ) {
@@ -234,15 +237,33 @@ fun TopAppBarScreenshotStyle(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(start = 8.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 3-line hamburger menu icon on the left of the profile option
+            IconButton(
+                onClick = onMenuClick,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("btn_top_hamburger_menu")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "মেনু ড্রয়ার",
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+
             // Profile circular badge with verified checkmark
             Box(
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
                     .clickable { onProfileClick() }
+                    .testTag("btn_top_profile")
             ) {
                 // Outer circle with colorful ring
                 Box(
