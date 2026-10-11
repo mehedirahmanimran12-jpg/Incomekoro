@@ -46,6 +46,8 @@ import com.example.ui.theme.*
 fun HomeScreen(
     repository: AppRepository,
     onOpenMenu: () -> Unit = {},
+    onNavigateToMobileRecharge: () -> Unit = {},
+    onNavigateToSimOffer: () -> Unit = {},
     onNavigateToTasks: () -> Unit,
     onNavigateToDeposit: () -> Unit,
     onNavigateToWithdraw: () -> Unit,
@@ -136,6 +138,8 @@ fun HomeScreen(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     onClick = {
                         when (service) {
+                            ServiceType.MOBILE_RECHARGE -> onNavigateToMobileRecharge()
+                            ServiceType.SIM_OFFER -> onNavigateToSimOffer()
                             ServiceType.MICRO_JOB, ServiceType.JOB_POST, ServiceType.REVIEW_JOB -> onNavigateToTasks()
                             ServiceType.DAILY_TARGET_BONUS, ServiceType.WEEKLY_BONUS, ServiceType.MONTHLY_SALARY -> onNavigateToDeposit()
                             ServiceType.DOLLAR_INCOME -> onNavigateToWithdraw()

@@ -38,7 +38,8 @@ enum class TransactionType(val displayName: String) {
     DEPOSIT("Deposit"),
     WITHDRAWAL("Withdrawal"),
     BONUS("Bonus"),
-    TEAM_COMMISSION("Team Commission")
+    TEAM_COMMISSION("Team Commission"),
+    MOBILE_RECHARGE("Mobile Recharge")
 }
 
 enum class TransactionStatus(val displayName: String) {
@@ -264,3 +265,83 @@ data class AppSettings(
     val rocketNumber: String = "01911-223344",
     val noticeTicker: String = "🔥 Welcome to INCOME KORO! Complete Daily Tasks, build your team, and withdraw instantly to bKash/Nagad/Rocket."
 )
+
+enum class TelecomOperator(
+    val displayName: String,
+    val bengaliName: String,
+    val brandColor: Long,
+    val prefixes: List<String>
+) {
+    GRAMEENPHONE("Grameenphone", "গ্রামীনফোন", 0xFF0072CE, listOf("017", "013")),
+    BANGLALINK("Banglalink", "বাংলালিংক", 0xFFFF6801, listOf("019", "014")),
+    ROBI("Robi", "রবি", 0xFFED1C24, listOf("018")),
+    AIRTEL("Airtel", "এয়ারটেল", 0xFFE40000, listOf("016")),
+    TELETALK("Teletalk", "টেলিটক", 0xFF009A44, listOf("015")),
+    SKITTO("Skitto", "স্কিটো", 0xFFFFB703, listOf("017", "013"))
+}
+
+enum class SimType(val displayName: String, val bengaliName: String) {
+    PREPAID("Prepaid", "প্রিপেইড"),
+    POSTPAID("Postpaid", "পোস্টপেইড"),
+    SKITTO("Skitto", "স্কিটো")
+}
+
+enum class OfferType(val displayName: String) {
+    REGULAR("সরাসরি"),
+    INTERNET("ইন্টারনেট"),
+    MINUTE("মিনিট"),
+    BUNDLE("বান্ডেল / ড্রাইভ")
+}
+
+data class RechargeOffer(
+    val id: String,
+    val title: String,
+    val validity: String,
+    val price: Double,
+    val cashback: Double,
+    val type: OfferType,
+    val operator: TelecomOperator,
+    val description: String = "",
+    val badge: String = ""
+)
+
+data class MobileRechargeRecord(
+    val id: String = "",
+    val phoneNumber: String = "",
+    val operator: TelecomOperator = TelecomOperator.GRAMEENPHONE,
+    val simType: SimType = SimType.PREPAID,
+    val amount: Double = 0.0,
+    val cashback: Double = 0.0,
+    val timestamp: Long = System.currentTimeMillis(),
+    val status: String = "সফল",
+    val transactionRef: String = ""
+)
+
+data class DriveOfferItem(
+    val id: String,
+    val operator: TelecomOperator,
+    val title: String,
+    val validity: String = "৩০ দিন",
+    val division: String = "অল বিডি",
+    val regularPrice: Double,
+    val offerPrice: Double,
+    val cashback: Double,
+    val description: String = "যেকোনো লোকাল নম্বরে কথা বলুন ও 4G ইন্টারনেট",
+    val tag: String = "হট ডিল"
+)
+
+data class DriveOfferOrder(
+    val id: String = "",
+    val offerTitle: String = "",
+    val operator: TelecomOperator = TelecomOperator.ROBI,
+    val phoneNumber: String = "",
+    val simType: SimType = SimType.PREPAID,
+    val division: String = "সকল বিভাগ",
+    val regularPrice: Double = 0.0,
+    val offerPrice: Double = 0.0,
+    val cashback: Double = 0.0,
+    val timestamp: Long = System.currentTimeMillis(),
+    val status: String = "প্রসেসিং",
+    val transactionRef: String = ""
+)
+

@@ -74,6 +74,14 @@ class AppRepository(
     private val _appSettings = MutableStateFlow(AppSettings())
     val appSettings: Flow<AppSettings> = _appSettings.asStateFlow()
 
+    // Mobile Recharges state
+    private val _mobileRecharges = MutableStateFlow<List<MobileRechargeRecord>>(emptyList())
+    val mobileRecharges: Flow<List<MobileRechargeRecord>> = _mobileRecharges.asStateFlow()
+
+    // Drive Offer Orders state
+    private val _driveOrders = MutableStateFlow<List<DriveOfferOrder>>(emptyList())
+    val driveOrders: Flow<List<DriveOfferOrder>> = _driveOrders.asStateFlow()
+
     init {
         // Seed default catalog
         loadInitialData()
@@ -99,6 +107,8 @@ class AppRepository(
         _teamMembers.value = getInitialTeamMembers()
         _tickets.value = getInitialTickets()
         _transactions.value = getInitialTransactions()
+        _mobileRecharges.value = getInitialRecharges()
+        _driveOrders.value = getInitialDriveOrders()
     }
 
     // --- Authentication Operations ---
@@ -923,4 +933,533 @@ class AppRepository(
             transactionRef = "WTH88219"
         )
     )
+
+    // --- Mobile Recharge Operations ---
+    suspend fun submitMobileRecharge(
+        phoneNumber: String,
+        operator: TelecomOperator,
+        simType: SimType,
+        amount: Double,
+        pin: String
+    ): Result<MobileRechargeRecord> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+        val cleanPhone = phoneNumber.replace("-", "").replace(" ", "").trim()
+
+        if (cleanPhone.length != 11 || !cleanPhone.startsWith("01")) {
+            return Result.failure(IllegalArgumentException("সঠিক ১১ ডিজিট বাংলাদেশি মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)"))
+        }
+        if (amount < 20.0) {
+            return Result.failure(IllegalArgumentException("সর্বনিম্ন রিচার্জের পরিমাণ ৳২০"))
+        }
+        if (amount > 10000.0) {
+            return Result.failure(IllegalArgumentException("সর্বোচ্চ রিচার্জের পরিমাণ ৳১০,০০০"))
+        }
+        if (amount > user.balance) {
+            return Result.failure(IllegalArgumentException("পর্যাপ্ত ব্যালেন্স নেই! বর্তমান ব্যালেন্স ৳${String.format(java.util.Locale.US, "%.2f", user.balance)}"))
+        }
+        if (pin.length < 4) {
+            return Result.failure(IllegalArgumentException("৪ ডিজিটের গোপন পিন কোড দিন"))
+        }
+
+        // 3% instant cashback
+        val cashback = amount * 0.03
+        val netDeducted = amount - cashback
+        val newBalance = user.balance - netDeducted
+
+        val rechargeId = "RCH" + System.currentTimeMillis().toString().takeLast(7)
+        val trxId = "TRX" + System.currentTimeMillis().toString().takeLast(8)
+
+        val record = MobileRechargeRecord(
+            id = rechargeId,
+            phoneNumber = cleanPhone,
+            operator = operator,
+            simType = simType,
+            amount = amount,
+            cashback = cashback,
+            timestamp = System.currentTimeMillis(),
+            status = "সফল",
+            transactionRef = trxId
+        )
+
+        // Deduct balance
+        _currentUser.value = user.copy(balance = newBalance)
+
+        // Add to recent recharge records
+        _mobileRecharges.value = listOf(record) + _mobileRecharges.value
+
+        // Add to main transactions
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.MOBILE_RECHARGE,
+            amount = -amount,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "মোবাইল রিচার্জ: $cleanPhone (${operator.bengaliName} ${simType.bengaliName}) | ক্যাশব্যাক ৳${String.format(java.util.Locale.US, "%.2f", cashback)}",
+            paymentMethod = operator.displayName,
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "মোবাইল রিচার্জ সফল! 📱",
+            message = "$cleanPhone (${operator.bengaliName}) নম্বরে ৳${String.format(java.util.Locale.US, "%.0f", amount)} রিচার্জ সফল হয়েছে। ক্যাশব্যাক ৳${String.format(java.util.Locale.US, "%.2f", cashback)} ব্যালেন্সে জমা হয়েছে।",
+            category = NotificationCategory.WALLET
+        )
+
+        return Result.success(record)
+    }
+
+    private fun getInitialRecharges(): List<MobileRechargeRecord> = listOf(
+        MobileRechargeRecord(
+            id = "RCH9812401",
+            phoneNumber = "01712893421",
+            operator = TelecomOperator.GRAMEENPHONE,
+            simType = SimType.PREPAID,
+            amount = 100.0,
+            cashback = 3.0,
+            timestamp = System.currentTimeMillis() - 86400000L * 1,
+            status = "সফল",
+            transactionRef = "TRX8829103"
+        ),
+        MobileRechargeRecord(
+            id = "RCH9812402",
+            phoneNumber = "01823746219",
+            operator = TelecomOperator.ROBI,
+            simType = SimType.PREPAID,
+            amount = 299.0,
+            cashback = 25.0,
+            timestamp = System.currentTimeMillis() - 86400000L * 3,
+            status = "সফল",
+            transactionRef = "TRX8829104"
+        ),
+        MobileRechargeRecord(
+            id = "RCH9812403",
+            phoneNumber = "01934128765",
+            operator = TelecomOperator.BANGLALINK,
+            simType = SimType.PREPAID,
+            amount = 50.0,
+            cashback = 1.5,
+            timestamp = System.currentTimeMillis() - 86400000L * 6,
+            status = "সফল",
+            transactionRef = "TRX8829105"
+        )
+    )
+
+    fun getRechargeOffers(operator: TelecomOperator): List<RechargeOffer> = when (operator) {
+        TelecomOperator.GRAMEENPHONE -> listOf(
+            RechargeOffer("gp_int_1", "1.5 GB ইন্টারনেট", "৩ দিন", 48.0, 5.0, OfferType.INTERNET, operator, "যেকোনো ব্যবহারে প্রযোজ্য", "পপুলার"),
+            RechargeOffer("gp_int_2", "5 GB ইন্টারনেট", "৭ দিন", 108.0, 10.0, OfferType.INTERNET, operator, "হট ডিল অফার", "হট"),
+            RechargeOffer("gp_int_3", "10 GB ইন্টারনেট", "৩০ দিন", 299.0, 25.0, OfferType.INTERNET, operator, "মাসিক ইন্টারনেট প্যাক", "বেস্ট সেলার"),
+            RechargeOffer("gp_int_4", "30 GB ইন্টারনেট", "৩০ দিন", 498.0, 40.0, OfferType.INTERNET, operator, "সুপার ভ্যালু ইন্টারনেট", "সুপার ডিল"),
+            RechargeOffer("gp_min_1", "৫০ মিনিট যেকোনো লোকাল", "৫ দিন", 34.0, 3.0, OfferType.MINUTE, operator, "২৪ ঘণ্টা কল সুবিধা"),
+            RechargeOffer("gp_min_2", "১৫০ মিনিট যেকোনো লোকাল", "১৫ দিন", 97.0, 8.0, OfferType.MINUTE, operator, "যেকোনো অপারেটরে কথা বলুন", "পপুলার"),
+            RechargeOffer("gp_min_3", "৩০০ মিনিট যেকোনো লোকাল", "৩০ দিন", 197.0, 18.0, OfferType.MINUTE, operator, "মাসিক টকটাইম প্যাক", "বেস্ট ভ্যালু"),
+            RechargeOffer("gp_bnd_1", "10 GB + ২০০ মিনিট", "৩০ দিন", 399.0, 35.0, OfferType.BUNDLE, operator, "ড্রাইভ প্যাক অফার", "ড্রাইভ"),
+            RechargeOffer("gp_bnd_2", "25 GB + ৫০০ মিনিট", "৩০ দিন", 649.0, 60.0, OfferType.BUNDLE, operator, "সুপার মেগা বান্ডেল", "মেগা অফার")
+        )
+        TelecomOperator.BANGLALINK -> listOf(
+            RechargeOffer("bl_int_1", "2 GB ইন্টারনেট", "৩ দিন", 46.0, 4.0, OfferType.INTERNET, operator, "হাই স্পিড 4G", "পপুলার"),
+            RechargeOffer("bl_int_2", "7 GB ইন্টারনেট", "৭ দিন", 114.0, 12.0, OfferType.INTERNET, operator, "সাপ্তাহিক ধামাকা অফার", "হট"),
+            RechargeOffer("bl_int_3", "15 GB ইন্টারনেট", "৩০ দিন", 319.0, 30.0, OfferType.INTERNET, operator, "মাসিক ইন্টারনেট প্যাক", "বেস্ট সেলার"),
+            RechargeOffer("bl_min_1", "৬০ মিনিট যেকোনো লোকাল", "৭ দিন", 39.0, 4.0, OfferType.MINUTE, operator, "২৪ ঘণ্টা ভ্যালিডিটি"),
+            RechargeOffer("bl_min_2", "২০০ মিনিট যেকোনো লোকাল", "৩০ দিন", 137.0, 15.0, OfferType.MINUTE, operator, "মাসিক টকটাইম", "পপুলার"),
+            RechargeOffer("bl_bnd_1", "12 GB + ২৫০ মিনিট", "৩০ দিন", 398.0, 40.0, OfferType.BUNDLE, operator, "স্পেশাল ড্রাইভ অফার", "ড্রাইভ"),
+            RechargeOffer("bl_bnd_2", "30 GB + ৬০০ মিনিট", "৩০ দিন", 698.0, 70.0, OfferType.BUNDLE, operator, "মেগা ফ্যামিলি প্যাক", "মেগা")
+        )
+        TelecomOperator.ROBI -> listOf(
+            RechargeOffer("rb_int_1", "2 GB ইন্টারনেট", "৪ দিন", 49.0, 5.0, OfferType.INTERNET, operator, "রবি 4.5G স্পিড", "পপুলার"),
+            RechargeOffer("rb_int_2", "6 GB ইন্টারনেট", "৭ দিন", 109.0, 10.0, OfferType.INTERNET, operator, "রবি সুপার প্যাক", "হট"),
+            RechargeOffer("rb_int_3", "12 GB ইন্টারনেট", "৩০ দিন", 319.0, 28.0, OfferType.INTERNET, operator, "মাসিক ইন্টারনেট", "বেস্ট সেলার"),
+            RechargeOffer("rb_min_1", "৭০ মিনিট যেকোনো অপারেটর", "৭ দিন", 44.0, 4.0, OfferType.MINUTE, operator, "লোকাল টকটাইম"),
+            RechargeOffer("rb_min_2", "২৫০ মিনিট যেকোনো অপারেটর", "৩০ দিন", 167.0, 16.0, OfferType.MINUTE, operator, "মাসিক টকটাইম", "পপুলার"),
+            RechargeOffer("rb_bnd_1", "15 GB + ৩০০ মিনিট", "৩০ দিন", 449.0, 45.0, OfferType.BUNDLE, operator, "রবি স্পেশাল ড্রাইভ", "ড্রাইভ"),
+            RechargeOffer("rb_bnd_2", "35 GB + ৭০০ মিনিট", "৩০ দিন", 749.0, 75.0, OfferType.BUNDLE, operator, "আনলিমিটেড সুপার ড্রাইভ", "মেগা অফার")
+        )
+        TelecomOperator.AIRTEL -> listOf(
+            RechargeOffer("at_int_1", "2.5 GB ইন্টারনেট", "৪ দিন", 48.0, 5.0, OfferType.INTERNET, operator, "এয়ারটেল ফ্রেন্ডস প্যাক", "পপুলার"),
+            RechargeOffer("at_int_2", "8 GB ইন্টারনেট", "৭ দিন", 118.0, 12.0, OfferType.INTERNET, operator, "সাপ্তাহিক হিট অফার", "হট"),
+            RechargeOffer("at_int_3", "15 GB ইন্টারনেট", "৩০ দিন", 328.0, 30.0, OfferType.INTERNET, operator, "মাসিক ইন্টারনেট প্যাক", "বেস্ট সেলার"),
+            RechargeOffer("at_min_1", "৮০ মিনিট যেকোনো লোকাল", "৭ দিন", 49.0, 5.0, OfferType.MINUTE, operator, "টকটাইম প্যাক"),
+            RechargeOffer("at_min_2", "৩০০ মিনিট যেকোনো লোকাল", "৩০ দিন", 198.0, 20.0, OfferType.MINUTE, operator, "মাসিক টকটাইম", "পপুলার"),
+            RechargeOffer("at_bnd_1", "18 GB + ৩৫০ মিনিট", "৩০ দিন", 468.0, 50.0, OfferType.BUNDLE, operator, "এয়ারটেল ড্রাইভ প্যাক", "ড্রাইভ")
+        )
+        TelecomOperator.TELETALK -> listOf(
+            RechargeOffer("tt_int_1", "2 GB ইন্টারনেট", "৩ দিন", 33.0, 3.0, OfferType.INTERNET, operator, "স্বল্পমূল্যের সরকারি সেবা", "সাশ্রয়ী"),
+            RechargeOffer("tt_int_2", "5 GB ইন্টারনেট", "১০ দিন", 84.0, 8.0, OfferType.INTERNET, operator, "টেলিটক স্পেশাল", "পপুলার"),
+            RechargeOffer("tt_int_3", "10 GB ইন্টারনেট", "৩০ দিন", 199.0, 20.0, OfferType.INTERNET, operator, "মাসিক সাশ্রয়ী প্যাক", "বেস্ট সেলার"),
+            RechargeOffer("tt_min_1", "১০০ মিনিট যেকোনো লোকাল", "১৫ দিন", 59.0, 6.0, OfferType.MINUTE, operator, "যেকোনো অপারেটরে কথা বলুন"),
+            RechargeOffer("tt_min_2", "২৫০ মিনিট যেকোনো লোকাল", "৩০ দিন", 139.0, 14.0, OfferType.MINUTE, operator, "মাসিক টকটাইম", "পপুলার"),
+            RechargeOffer("tt_bnd_1", "8 GB + ১৫০ মিনিট", "৩০ দিন", 279.0, 30.0, OfferType.BUNDLE, operator, "টেলিটক কম্বো ড্রাইভ", "ড্রাইভ")
+        )
+        TelecomOperator.SKITTO -> listOf(
+            RechargeOffer("sk_int_1", "2 GB চিল প্যাক", "৩ দিন", 39.0, 4.0, OfferType.INTERNET, operator, "স্কিটো চিল ইন্টারনেট", "চিল প্যাক"),
+            RechargeOffer("sk_int_2", "7 GB প্রো ডাটা", "৭ দিন", 99.0, 10.0, OfferType.INTERNET, operator, "সাপ্তাহিক ডাটা ব্যাকার", "পপুলার"),
+            RechargeOffer("sk_int_3", "15 GB মেগা রিলোড", "৩০ দিন", 279.0, 25.0, OfferType.INTERNET, operator, "মাসিক স্কিটো মেগা ডাটা", "বেস্ট সেলার"),
+            RechargeOffer("sk_min_1", "১০০ মিনিট স্কিটো টক", "১৫ দিন", 68.0, 7.0, OfferType.MINUTE, operator, "সকল লোকাল অপারেটরে"),
+            RechargeOffer("sk_bnd_1", "12 GB + ২০০ মিনিট", "৩০ দিন", 369.0, 35.0, OfferType.BUNDLE, operator, "স্কিটো সুপার কম্বো", "সুপার কম্বো")
+        )
+    }
+
+    private fun getInitialDriveOrders(): List<DriveOfferOrder> = listOf(
+        DriveOfferOrder(
+            id = "DRV928101",
+            offerTitle = "40 GB + 800 মিনিট",
+            operator = TelecomOperator.ROBI,
+            phoneNumber = "01823746219",
+            simType = SimType.PREPAID,
+            division = "অল বিডি",
+            regularPrice = 798.0,
+            offerPrice = 648.0,
+            cashback = 150.0,
+            timestamp = System.currentTimeMillis() - 86400000L * 1,
+            status = "সফল",
+            transactionRef = "TRX9921011"
+        ),
+        DriveOfferOrder(
+            id = "DRV928102",
+            offerTitle = "35 GB + 700 মিনিট",
+            operator = TelecomOperator.BANGLALINK,
+            phoneNumber = "01934128765",
+            simType = SimType.PREPAID,
+            division = "ঢাকা",
+            regularPrice = 748.0,
+            offerPrice = 598.0,
+            cashback = 150.0,
+            timestamp = System.currentTimeMillis() - 86400000L * 2,
+            status = "সফল",
+            transactionRef = "TRX9921012"
+        ),
+        DriveOfferOrder(
+            id = "DRV928103",
+            offerTitle = "30 GB + 600 মিনিট",
+            operator = TelecomOperator.GRAMEENPHONE,
+            phoneNumber = "01712893421",
+            simType = SimType.PREPAID,
+            division = "অল বিডি",
+            regularPrice = 749.0,
+            offerPrice = 629.0,
+            cashback = 120.0,
+            timestamp = System.currentTimeMillis() - 3600000L * 3,
+            status = "প্রসেসিং",
+            transactionRef = "TRX9921013"
+        )
+    )
+
+    fun getAllDriveOffers(): List<DriveOfferItem> = listOf(
+        // Robi
+        DriveOfferItem(
+            id = "drv_rb_1",
+            operator = TelecomOperator.ROBI,
+            title = "40 GB + 800 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 798.0,
+            offerPrice = 648.0,
+            cashback = 150.0,
+            description = "যেকোনো লোকাল নম্বরে কথা বলুন ও 4G ইন্টারনেট",
+            tag = "হট ডিল"
+        ),
+        DriveOfferItem(
+            id = "drv_rb_2",
+            operator = TelecomOperator.ROBI,
+            title = "15 GB + 300 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 449.0,
+            offerPrice = 399.0,
+            cashback = 50.0,
+            description = "মাসিক সাশ্রয়ী কম্বো অফার",
+            tag = "পপুলার"
+        ),
+        DriveOfferItem(
+            id = "drv_rb_3",
+            operator = TelecomOperator.ROBI,
+            title = "50 GB ইন্টারনেট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 599.0,
+            offerPrice = 519.0,
+            cashback = 80.0,
+            description = "হাই স্পিড আনলিমিটেড ইন্টারনেট প্যাক",
+            tag = "মেগা অফার"
+        ),
+        DriveOfferItem(
+            id = "drv_rb_4",
+            operator = TelecomOperator.ROBI,
+            title = "30 GB + 600 মিনিট",
+            validity = "৩০ দিন",
+            division = "ঢাকা",
+            regularPrice = 649.0,
+            offerPrice = 549.0,
+            cashback = 100.0,
+            description = "ঢাকা বিভাগের বিশেষ অফার",
+            tag = "স্পেশাল"
+        ),
+
+        // Airtel
+        DriveOfferItem(
+            id = "drv_at_1",
+            operator = TelecomOperator.AIRTEL,
+            title = "45 GB + 900 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 799.0,
+            offerPrice = 639.0,
+            cashback = 160.0,
+            description = "এয়ারটেল ফ্রেন্ডস সুপার কম্বো",
+            tag = "হট ডিল"
+        ),
+        DriveOfferItem(
+            id = "drv_at_2",
+            operator = TelecomOperator.AIRTEL,
+            title = "18 GB + 350 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 468.0,
+            offerPrice = 418.0,
+            cashback = 50.0,
+            description = "সাশ্রয়ী মূল্যে মাসিক বান্ডেল",
+            tag = "পপুলার"
+        ),
+        DriveOfferItem(
+            id = "drv_at_3",
+            operator = TelecomOperator.AIRTEL,
+            title = "30 GB ইন্টারনেট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 499.0,
+            offerPrice = 419.0,
+            cashback = 80.0,
+            description = "এয়ারটেল সুপার 4G ডাটা প্যাক",
+            tag = "ডাটা প্যাক"
+        ),
+        DriveOfferItem(
+            id = "drv_at_4",
+            operator = TelecomOperator.AIRTEL,
+            title = "60 GB + 1000 মিনিট",
+            validity = "৩০ দিন",
+            division = "চট্টগ্রাম",
+            regularPrice = 899.0,
+            offerPrice = 729.0,
+            cashback = 170.0,
+            description = "চট্টগ্রাম ও অল বিডি স্পেশাল",
+            tag = "মেগা অফার"
+        ),
+
+        // Banglalink
+        DriveOfferItem(
+            id = "drv_bl_1",
+            operator = TelecomOperator.BANGLALINK,
+            title = "35 GB + 700 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 748.0,
+            offerPrice = 598.0,
+            cashback = 150.0,
+            description = "বাংলালিংক ধামাকা ড্রাইভ প্যাক",
+            tag = "হট ডিল"
+        ),
+        DriveOfferItem(
+            id = "drv_bl_2",
+            operator = TelecomOperator.BANGLALINK,
+            title = "12 GB + 250 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 398.0,
+            offerPrice = 348.0,
+            cashback = 50.0,
+            description = "মাসিক টকটাইম ও ইন্টারনেট",
+            tag = "পপুলার"
+        ),
+        DriveOfferItem(
+            id = "drv_bl_3",
+            operator = TelecomOperator.BANGLALINK,
+            title = "40 GB ইন্টারনেট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 549.0,
+            offerPrice = 469.0,
+            cashback = 80.0,
+            description = "বাংলালিংক 4G সুপার স্পিড ডাটা",
+            tag = "ডাটা প্যাক"
+        ),
+        DriveOfferItem(
+            id = "drv_bl_4",
+            operator = TelecomOperator.BANGLALINK,
+            title = "55 GB + 800 মিনিট",
+            validity = "৩০ দিন",
+            division = "রাজশাহী",
+            regularPrice = 849.0,
+            offerPrice = 699.0,
+            cashback = 150.0,
+            description = "রাজশাহী ও উত্তরবঙ্গ স্পেশাল",
+            tag = "মেগা অফার"
+        ),
+
+        // Grameenphone
+        DriveOfferItem(
+            id = "drv_gp_1",
+            operator = TelecomOperator.GRAMEENPHONE,
+            title = "30 GB + 600 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 749.0,
+            offerPrice = 629.0,
+            cashback = 120.0,
+            description = "জিপি সুপার ড্রাইভ কম্বো",
+            tag = "হট ডিল"
+        ),
+        DriveOfferItem(
+            id = "drv_gp_2",
+            operator = TelecomOperator.GRAMEENPHONE,
+            title = "10 GB + 200 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 399.0,
+            offerPrice = 349.0,
+            cashback = 50.0,
+            description = "মাসিক সাশ্রয়ী জিপি প্যাক",
+            tag = "পপুলার"
+        ),
+        DriveOfferItem(
+            id = "drv_gp_3",
+            operator = TelecomOperator.GRAMEENPHONE,
+            title = "25 GB ইন্টারনেট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 498.0,
+            offerPrice = 428.0,
+            cashback = 70.0,
+            description = "জিপি সেরা ইন্টারনেট অভিজ্ঞতা",
+            tag = "ডাটা প্যাক"
+        ),
+        DriveOfferItem(
+            id = "drv_gp_4",
+            operator = TelecomOperator.GRAMEENPHONE,
+            title = "45 GB + 800 মিনিট",
+            validity = "৩০ দিন",
+            division = "সিলেট",
+            regularPrice = 849.0,
+            offerPrice = 729.0,
+            cashback = 120.0,
+            description = "সিলেট ও অল বিডি প্রিমিয়াম অফার",
+            tag = "মেগা অফার"
+        ),
+
+        // Teletalk
+        DriveOfferItem(
+            id = "drv_tt_1",
+            operator = TelecomOperator.TELETALK,
+            title = "20 GB + 400 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 449.0,
+            offerPrice = 379.0,
+            cashback = 70.0,
+            description = "টেলিটক সাশ্রয়ী ড্রাইভ বান্ডেল",
+            tag = "হট ডিল"
+        ),
+        DriveOfferItem(
+            id = "drv_tt_2",
+            operator = TelecomOperator.TELETALK,
+            title = "8 GB + 150 মিনিট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 279.0,
+            offerPrice = 239.0,
+            cashback = 40.0,
+            description = "টেলিটক লোকাল প্যাক",
+            tag = "পপুলার"
+        ),
+        DriveOfferItem(
+            id = "drv_tt_3",
+            operator = TelecomOperator.TELETALK,
+            title = "30 GB ইন্টারনেট",
+            validity = "৩০ দিন",
+            division = "অল বিডি",
+            regularPrice = 399.0,
+            offerPrice = 329.0,
+            cashback = 70.0,
+            description = "টেলিটক সুপার ডাটা ড্রাইভ",
+            tag = "মেগা অফার"
+        )
+    )
+
+    suspend fun submitDriveOfferOrder(
+        offerTitle: String,
+        operator: TelecomOperator,
+        phoneNumber: String,
+        simType: SimType,
+        division: String,
+        regularPrice: Double,
+        offerPrice: Double,
+        cashback: Double,
+        pin: String
+    ): Result<DriveOfferOrder> {
+        val cleanPhone = phoneNumber.trim().replace("-", "").replace(" ", "")
+        if (cleanPhone.length != 11 || !cleanPhone.startsWith("01")) {
+            return Result.failure(Exception("সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: 018XXXXXXXX)"))
+        }
+
+        if (pin.length < 4) {
+            return Result.failure(Exception("সঠিক ৪ ডিজিটের পিন নম্বর দিন"))
+        }
+
+        val user = _currentUser.value ?: return Result.failure(Exception("ইউজার পাওয়া যায়নি"))
+
+        if (user.balance < offerPrice) {
+            return Result.failure(
+                Exception(
+                    "অপর্যাপ্ত ব্যালেন্স! আপনার ব্যালেন্স ৳${String.format(java.util.Locale.US, "%.2f", user.balance)}, অফারের মূল্য ৳${String.format(java.util.Locale.US, "%.0f", offerPrice)}"
+                )
+            )
+        }
+
+        // Net deducted: offerPrice - cashback instantly or user pays offerPrice and gets cashback added
+        val netDeducted = offerPrice - cashback
+        val newBalance = user.balance - netDeducted
+
+        val orderId = "DRV" + System.currentTimeMillis().toString().takeLast(7)
+        val trxId = "TRX" + System.currentTimeMillis().toString().takeLast(8)
+
+        val order = DriveOfferOrder(
+            id = orderId,
+            offerTitle = offerTitle,
+            operator = operator,
+            phoneNumber = cleanPhone,
+            simType = simType,
+            division = division,
+            regularPrice = regularPrice,
+            offerPrice = offerPrice,
+            cashback = cashback,
+            timestamp = System.currentTimeMillis(),
+            status = "প্রসেসিং",
+            transactionRef = trxId
+        )
+
+        _currentUser.value = user.copy(balance = newBalance)
+        _driveOrders.value = listOf(order) + _driveOrders.value
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.MOBILE_RECHARGE,
+            amount = -offerPrice,
+            status = TransactionStatus.PENDING,
+            date = System.currentTimeMillis(),
+            description = "ড্রাইভ অফার: $offerTitle ($cleanPhone - ${operator.bengaliName}) | ক্যাশব্যাক ৳${String.format(java.util.Locale.US, "%.0f", cashback)}",
+            paymentMethod = operator.displayName,
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "ড্রাইভ অফার আবেদন সফল! 🚀",
+            message = "$cleanPhone (${operator.bengaliName}) নম্বরে '$offerTitle' ড্রাইভ অফারটি প্রসেসিং-এ রয়েছে। ক্যাশব্যাক ৳${String.format(java.util.Locale.US, "%.0f", cashback)} সমন্বয় করা হয়েছে।",
+            category = NotificationCategory.WALLET
+        )
+
+        return Result.success(order)
+    }
 }

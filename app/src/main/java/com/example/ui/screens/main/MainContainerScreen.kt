@@ -54,6 +54,8 @@ fun MainContainerScreen(
     onNavigateToAnnouncements: () -> Unit,
     onNavigateToEditProfile: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToMobileRecharge: () -> Unit = {},
+    onNavigateToSimOffer: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val currentUser by repository.currentUser.collectAsState(initial = null)
@@ -80,6 +82,10 @@ fun MainContainerScreen(
                 onNavigateToHome = {
                     selectedTab = MainTab.HOME
                     coroutineScope.launch { drawerState.close() }
+                },
+                onNavigateToMobileRecharge = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToMobileRecharge()
                 },
                 onNavigateToAbout = {
                     infoDialogTitle = "আমাদের সম্পর্কে (About Us)"
@@ -182,6 +188,8 @@ fun MainContainerScreen(
                         HomeScreen(
                             repository = repository,
                             onOpenMenu = { coroutineScope.launch { drawerState.open() } },
+                            onNavigateToMobileRecharge = onNavigateToMobileRecharge,
+                            onNavigateToSimOffer = onNavigateToSimOffer,
                             onNavigateToTasks = { selectedTab = MainTab.SHOP },
                             onNavigateToDeposit = onNavigateToDeposit,
                             onNavigateToWithdraw = onNavigateToWithdraw,
@@ -199,6 +207,7 @@ fun MainContainerScreen(
                             repository = repository,
                             onNavigateToDeposit = onNavigateToDeposit,
                             onNavigateToWithdraw = onNavigateToWithdraw,
+                            onNavigateToMobileRecharge = onNavigateToMobileRecharge,
                             onNavigateToTransactions = onNavigateToTransactions,
                             onSelectTransaction = onNavigateToTransactionDetail
                         )

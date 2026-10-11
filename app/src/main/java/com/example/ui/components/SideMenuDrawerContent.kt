@@ -32,6 +32,7 @@ import com.example.data.model.User
 fun SideMenuDrawerContent(
     user: User,
     onNavigateToHome: () -> Unit,
+    onNavigateToMobileRecharge: () -> Unit = {},
     onNavigateToAbout: () -> Unit,
     onNavigateToPassiveIncome: () -> Unit,
     onNavigateToSupport: () -> Unit,
@@ -250,6 +251,16 @@ fun SideMenuDrawerContent(
                     onClick = {
                         onCloseDrawer()
                         onNavigateToHome()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "মোবাইল রিচার্জ",
+                    icon = Icons.Default.SendToMobile,
+                    iconColor = Color(0xFF0055D2),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToMobileRecharge()
                     }
                 )
 

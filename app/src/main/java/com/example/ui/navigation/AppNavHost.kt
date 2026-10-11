@@ -16,6 +16,8 @@ import com.example.ui.screens.main.MainContainerScreen
 import com.example.ui.screens.onboarding.OnboardingScreen
 import com.example.ui.screens.profile.EditProfileScreen
 import com.example.ui.screens.profile.SettingsScreen
+import com.example.ui.screens.offer.SimOfferScreen
+import com.example.ui.screens.recharge.MobileRechargeScreen
 import com.example.ui.screens.splash.SplashScreen
 import com.example.ui.screens.support.*
 import com.example.ui.screens.team.ReferralScreen
@@ -119,6 +121,8 @@ fun AppNavHost(
                 onNavigateToAnnouncements = { navController.navigate(Screen.Announcements.route) },
                 onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToMobileRecharge = { navController.navigate(Screen.MobileRecharge.route) },
+                onNavigateToSimOffer = { navController.navigate(Screen.SimOffer.route) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
@@ -170,6 +174,21 @@ fun AppNavHost(
                 repository = repository,
                 onNavigateBack = { navController.popBackStack() },
                 onWithdrawSuccess = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.MobileRecharge.route) {
+            MobileRechargeScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() },
+                onRechargeSuccess = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.SimOffer.route) {
+            SimOfferScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 

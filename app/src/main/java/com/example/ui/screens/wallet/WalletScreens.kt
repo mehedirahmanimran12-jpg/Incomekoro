@@ -44,6 +44,7 @@ fun WalletScreen(
     repository: AppRepository,
     onNavigateToDeposit: () -> Unit,
     onNavigateToWithdraw: () -> Unit,
+    onNavigateToMobileRecharge: () -> Unit = {},
     onNavigateToTransactions: () -> Unit,
     onSelectTransaction: (String) -> Unit
 ) {
@@ -189,6 +190,15 @@ fun WalletScreen(
                         onClick = onNavigateToWithdraw,
                         modifier = Modifier.weight(1f),
                         tag = "btn_wallet_withdraw"
+                    )
+                    ActionBigButton(
+                        title = "Recharge",
+                        icon = Icons.Default.SendToMobile,
+                        containerColor = Color(0xFF0055D2).copy(alpha = 0.15f),
+                        contentColor = Color(0xFF0055D2),
+                        onClick = onNavigateToMobileRecharge,
+                        modifier = Modifier.weight(1f),
+                        tag = "btn_wallet_recharge"
                     )
                     ActionBigButton(
                         title = "Transfer",
