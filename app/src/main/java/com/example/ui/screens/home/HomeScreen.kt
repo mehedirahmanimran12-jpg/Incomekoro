@@ -48,6 +48,11 @@ fun HomeScreen(
     onOpenMenu: () -> Unit = {},
     onNavigateToMobileRecharge: () -> Unit = {},
     onNavigateToSimOffer: () -> Unit = {},
+    onNavigateToResellingShop: () -> Unit = {},
+    onNavigateToFreelancingCourse: () -> Unit = {},
+    onNavigateToOnlineService: () -> Unit = {},
+    onNavigateToMicroJobs: () -> Unit = {},
+    onNavigateToDollarIncome: () -> Unit = {},
     onNavigateToTasks: () -> Unit,
     onNavigateToDeposit: () -> Unit,
     onNavigateToWithdraw: () -> Unit,
@@ -140,9 +145,12 @@ fun HomeScreen(
                         when (service) {
                             ServiceType.MOBILE_RECHARGE -> onNavigateToMobileRecharge()
                             ServiceType.SIM_OFFER -> onNavigateToSimOffer()
-                            ServiceType.MICRO_JOB, ServiceType.JOB_POST, ServiceType.REVIEW_JOB -> onNavigateToTasks()
+                            ServiceType.RESELLING_SHOP -> onNavigateToResellingShop()
+                            ServiceType.FREELANCING_COURSE, ServiceType.COURSE -> onNavigateToFreelancingCourse()
+                            ServiceType.ONLINE_SERVICE -> onNavigateToOnlineService()
+                            ServiceType.MICRO_JOB, ServiceType.JOB_POST, ServiceType.REVIEW_JOB -> onNavigateToMicroJobs()
                             ServiceType.DAILY_TARGET_BONUS, ServiceType.WEEKLY_BONUS, ServiceType.MONTHLY_SALARY -> onNavigateToDeposit()
-                            ServiceType.DOLLAR_INCOME -> onNavigateToWithdraw()
+                            ServiceType.ADS_INCOME, ServiceType.DOLLAR_INCOME -> onNavigateToDollarIncome()
                             ServiceType.LEADERSHIP -> onNavigateToReferral()
                             else -> selectedServiceModal = service
                         }

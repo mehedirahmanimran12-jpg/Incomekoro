@@ -17,6 +17,11 @@ import com.example.ui.screens.onboarding.OnboardingScreen
 import com.example.ui.screens.profile.EditProfileScreen
 import com.example.ui.screens.profile.SettingsScreen
 import com.example.ui.screens.offer.SimOfferScreen
+import com.example.ui.screens.shop.ResellingShopScreen
+import com.example.ui.screens.course.FreelancingCourseScreen
+import com.example.ui.screens.service.OnlineServiceScreen
+import com.example.ui.screens.jobs.MicroJobsScreen
+import com.example.ui.screens.income.DollarIncomeScreen
 import com.example.ui.screens.recharge.MobileRechargeScreen
 import com.example.ui.screens.splash.SplashScreen
 import com.example.ui.screens.support.*
@@ -123,6 +128,11 @@ fun AppNavHost(
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToMobileRecharge = { navController.navigate(Screen.MobileRecharge.route) },
                 onNavigateToSimOffer = { navController.navigate(Screen.SimOffer.route) },
+                onNavigateToResellingShop = { navController.navigate(Screen.ResellingShop.route) },
+                onNavigateToFreelancingCourse = { navController.navigate(Screen.FreelancingCourse.route) },
+                onNavigateToOnlineService = { navController.navigate(Screen.OnlineService.route) },
+                onNavigateToMicroJobs = { navController.navigate(Screen.MicroJobs.route) },
+                onNavigateToDollarIncome = { navController.navigate(Screen.DollarIncome.route) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
@@ -187,6 +197,48 @@ fun AppNavHost(
 
         composable(Screen.SimOffer.route) {
             SimOfferScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.ResellingShop.route) {
+            ResellingShopScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.FreelancingCourse.route) {
+            FreelancingCourseScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.OnlineService.route) {
+            OnlineServiceScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.MicroJobs.route) {
+            MicroJobsScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.DollarIncome.route) {
+            DollarIncomeScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.AdsIncome.route) {
+            DollarIncomeScreen(
                 repository = repository,
                 onNavigateBack = { navController.popBackStack() }
             )

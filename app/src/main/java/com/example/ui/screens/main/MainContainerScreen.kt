@@ -30,6 +30,7 @@ import com.example.ui.screens.profile.ProfileScreen
 import com.example.ui.screens.team.TeamScreen
 import com.example.ui.screens.wallet.WalletScreen
 import com.example.ui.screens.work.WorkScreen
+import com.example.ui.screens.shop.ResellingShopScreen
 import kotlinx.coroutines.launch
 
 enum class MainTab(val title: String, val icon: ImageVector, val showLabel: Boolean) {
@@ -56,6 +57,11 @@ fun MainContainerScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToMobileRecharge: () -> Unit = {},
     onNavigateToSimOffer: () -> Unit = {},
+    onNavigateToResellingShop: () -> Unit = {},
+    onNavigateToFreelancingCourse: () -> Unit = {},
+    onNavigateToOnlineService: () -> Unit = {},
+    onNavigateToMicroJobs: () -> Unit = {},
+    onNavigateToDollarIncome: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val currentUser by repository.currentUser.collectAsState(initial = null)
@@ -86,6 +92,30 @@ fun MainContainerScreen(
                 onNavigateToMobileRecharge = {
                     coroutineScope.launch { drawerState.close() }
                     onNavigateToMobileRecharge()
+                },
+                onNavigateToSimOffer = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToSimOffer()
+                },
+                onNavigateToResellingShop = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToResellingShop()
+                },
+                onNavigateToFreelancingCourse = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToFreelancingCourse()
+                },
+                onNavigateToOnlineService = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToOnlineService()
+                },
+                onNavigateToMicroJobs = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToMicroJobs()
+                },
+                onNavigateToDollarIncome = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToDollarIncome()
                 },
                 onNavigateToAbout = {
                     infoDialogTitle = "আমাদের সম্পর্কে (About Us)"
@@ -190,6 +220,11 @@ fun MainContainerScreen(
                             onOpenMenu = { coroutineScope.launch { drawerState.open() } },
                             onNavigateToMobileRecharge = onNavigateToMobileRecharge,
                             onNavigateToSimOffer = onNavigateToSimOffer,
+                            onNavigateToResellingShop = onNavigateToResellingShop,
+                            onNavigateToFreelancingCourse = onNavigateToFreelancingCourse,
+                            onNavigateToOnlineService = onNavigateToOnlineService,
+                            onNavigateToMicroJobs = onNavigateToMicroJobs,
+                            onNavigateToDollarIncome = onNavigateToDollarIncome,
                             onNavigateToTasks = { selectedTab = MainTab.SHOP },
                             onNavigateToDeposit = onNavigateToDeposit,
                             onNavigateToWithdraw = onNavigateToWithdraw,
@@ -213,9 +248,10 @@ fun MainContainerScreen(
                         )
                     }
                     MainTab.SHOP -> {
-                        WorkScreen(
+                        ResellingShopScreen(
                             repository = repository,
-                            onSelectTask = onNavigateToTaskDetail
+                            onNavigateBack = { selectedTab = MainTab.HOME },
+                            isBottomTab = true
                         )
                     }
                     MainTab.TEAM -> {

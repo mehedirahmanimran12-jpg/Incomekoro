@@ -345,3 +345,125 @@ data class DriveOfferOrder(
     val transactionRef: String = ""
 )
 
+enum class ResellingCategory(val displayName: String) {
+    ALL("সকল পণ্য"),
+    MENS_FASHION("মেনস ফ্যাশন"),
+    WOMENS_FASHION("লেডিস ফ্যাশন"),
+    ELECTRONICS("ইলেকট্রনিক্স ও গ্যাজেট"),
+    BEAUTY("কসমেটিকস ও বিউটি"),
+    WATCHES("ঘড়ি ও অ্যাক্সেসরিজ"),
+    HOME_LIVING("হোম অ্যান্ড লিভিং"),
+    FOOTWEAR("জুতো ও ব্যাগ")
+}
+
+data class ResellingProduct(
+    val id: String,
+    val productCode: String,
+    val title: String,
+    val category: ResellingCategory,
+    val wholesalePrice: Double,
+    val maxRetailPrice: Double,
+    val suggestedProfit: Double,
+    val stockQuantity: Int = 150,
+    val rating: Double = 4.8,
+    val reviewCount: Int = 42,
+    val description: String = "",
+    val shortSpecs: List<String> = emptyList(),
+    val deliveryChargeInsideDhaka: Double = 70.0,
+    val deliveryChargeOutsideDhaka: Double = 130.0,
+    val isHotDeal: Boolean = false,
+    val tag: String = "হট ডিল"
+)
+
+data class ResellingOrder(
+    val id: String = "",
+    val productTitle: String = "",
+    val productCode: String = "",
+    val quantity: Int = 1,
+    val wholesalePrice: Double = 0.0,
+    val customerSellingPrice: Double = 0.0,
+    val resellerProfit: Double = 0.0,
+    val deliveryCharge: Double = 70.0,
+    val totalCustomerPayable: Double = 0.0,
+    val customerName: String = "",
+    val customerPhone: String = "",
+    val deliveryAddress: String = "",
+    val district: String = "ঢাকা",
+    val deliveryArea: String = "ঢাকার ভেতরে",
+    val status: String = "প্রসেসিং",
+    val timestamp: Long = System.currentTimeMillis(),
+    val transactionRef: String = ""
+)
+
+data class ResellingCartItem(
+    val product: ResellingProduct,
+    val quantity: Int = 1,
+    val customerSellingPrice: Double = product.maxRetailPrice
+)
+
+data class FreelancingCourse(
+    val id: String,
+    val title: String,
+    val price: Double = 50.0,
+    val priceBengali: String = "৳ ৫০",
+    val drawableResName: String,
+    val description: String = "",
+    val lessonsCount: Int = 12,
+    val totalHours: String = "৪ ঘণ্টা ৩০ মিনিট",
+    val instructor: String = "Rootva Academy"
+)
+
+data class CourseOrder(
+    val id: String = "",
+    val courseId: String = "",
+    val courseTitle: String = "",
+    val price: Double = 50.0,
+    val timestamp: Long = System.currentTimeMillis(),
+    val transactionRef: String = ""
+)
+
+data class OnlineServiceItem(
+    val id: String,
+    val title: String,
+    val price: Double = 30.0,
+    val priceDisplay: String = "Price ৳ 30.00",
+    val resellingPrice: Double = 50.0,
+    val resellingPriceDisplay: String = "Reselling Price ৳ 50.00",
+    val isNew: Boolean = true,
+    val category: String = "Digital Product",
+    val description: String = "Facebook official latest build with all pro features, ad-free experience, media downloader, and background play unlocked.",
+    val downloadUrl: String = "https://rootva.app/download/facebook-v585-premium.apk"
+)
+
+data class OnlineServiceOrder(
+    val id: String = "",
+    val serviceId: String = "",
+    val serviceTitle: String = "",
+    val price: Double = 30.0,
+    val timestamp: Long = System.currentTimeMillis(),
+    val downloadUrl: String = "",
+    val status: String = "সফল"
+)
+
+data class MicroJobItem(
+    val id: String,
+    val serialNumber: Int,
+    val title: String,
+    val reward: Double = 0.5,
+    val rewardDisplay: String = "Reward: 0.5৳",
+    val platform: String = "Facebook",
+    val instructions: String = "",
+    val targetUrl: String = "https://facebook.com",
+    val requiresScreenshot: Boolean = true
+)
+
+data class MicroJobSubmission(
+    val id: String = "",
+    val jobId: String = "",
+    val jobTitle: String = "",
+    val reward: Double = 0.5,
+    val userProofText: String = "",
+    val timestamp: Long = System.currentTimeMillis(),
+    val status: String = "পেন্ডিং রিভিউ"
+)
+

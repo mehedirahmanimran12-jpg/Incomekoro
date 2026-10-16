@@ -82,6 +82,28 @@ class AppRepository(
     private val _driveOrders = MutableStateFlow<List<DriveOfferOrder>>(emptyList())
     val driveOrders: Flow<List<DriveOfferOrder>> = _driveOrders.asStateFlow()
 
+    // Reselling Shop state
+    private val _resellingOrders = MutableStateFlow<List<ResellingOrder>>(emptyList())
+    val resellingOrders: Flow<List<ResellingOrder>> = _resellingOrders.asStateFlow()
+
+    private val _cartItems = MutableStateFlow<List<ResellingCartItem>>(emptyList())
+    val cartItems: Flow<List<ResellingCartItem>> = _cartItems.asStateFlow()
+
+    private val _favoriteProductIds = MutableStateFlow<Set<String>>(setOf("prod_1", "prod_3"))
+    val favoriteProductIds: Flow<Set<String>> = _favoriteProductIds.asStateFlow()
+
+    // Freelancing Courses state
+    private val _purchasedCourseIds = MutableStateFlow<Set<String>>(emptySet())
+    val purchasedCourseIds: Flow<Set<String>> = _purchasedCourseIds.asStateFlow()
+
+    // Online Services state
+    private val _onlineServiceOrders = MutableStateFlow<List<OnlineServiceOrder>>(emptyList())
+    val onlineServiceOrders: Flow<List<OnlineServiceOrder>> = _onlineServiceOrders.asStateFlow()
+
+    // Micro Jobs state
+    private val _completedMicroJobIds = MutableStateFlow<Set<String>>(emptySet())
+    val completedMicroJobIds: Flow<Set<String>> = _completedMicroJobIds.asStateFlow()
+
     init {
         // Seed default catalog
         loadInitialData()
@@ -109,6 +131,8 @@ class AppRepository(
         _transactions.value = getInitialTransactions()
         _mobileRecharges.value = getInitialRecharges()
         _driveOrders.value = getInitialDriveOrders()
+        _resellingOrders.value = getInitialResellingOrders()
+        _onlineServiceOrders.value = getInitialOnlineServiceOrders()
     }
 
     // --- Authentication Operations ---
@@ -1461,5 +1485,640 @@ class AppRepository(
         )
 
         return Result.success(order)
+    }
+
+    // --- Reselling Shop Operations ---
+
+    fun toggleFavoriteProduct(productId: String) {
+        val current = _favoriteProductIds.value
+        _favoriteProductIds.value = if (current.contains(productId)) {
+            current - productId
+        } else {
+            current + productId
+        }
+    }
+
+    fun addToCart(product: ResellingProduct, quantity: Int = 1, sellingPrice: Double = product.maxRetailPrice) {
+        val current = _cartItems.value.toMutableList()
+        val index = current.indexOfFirst { it.product.id == product.id }
+        if (index >= 0) {
+            val existing = current[index]
+            current[index] = existing.copy(
+                quantity = existing.quantity + quantity,
+                customerSellingPrice = sellingPrice
+            )
+        } else {
+            current.add(ResellingCartItem(product = product, quantity = quantity, customerSellingPrice = sellingPrice))
+        }
+        _cartItems.value = current
+    }
+
+    fun removeFromCart(productId: String) {
+        _cartItems.value = _cartItems.value.filter { it.product.id != productId }
+    }
+
+    fun updateCartQuantity(productId: String, quantity: Int) {
+        if (quantity <= 0) {
+            removeFromCart(productId)
+        } else {
+            _cartItems.value = _cartItems.value.map {
+                if (it.product.id == productId) it.copy(quantity = quantity) else it
+            }
+        }
+    }
+
+    fun clearCart() {
+        _cartItems.value = emptyList()
+    }
+
+    suspend fun submitResellingOrder(
+        product: ResellingProduct,
+        quantity: Int,
+        customerSellingPrice: Double,
+        customerName: String,
+        customerPhone: String,
+        deliveryAddress: String,
+        district: String,
+        isInsideDhaka: Boolean,
+        pin: String
+    ): Result<ResellingOrder> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        if (pin.trim().length != 4) {
+            return Result.failure(IllegalArgumentException("সঠিক ৪ ডিজিটের পিন নম্বর লিখুন"))
+        }
+
+        val cleanName = customerName.trim()
+        if (cleanName.length < 2) {
+            return Result.failure(IllegalArgumentException("গ্রাহকের নাম সঠিকভাবে পূরণ করুন"))
+        }
+
+        val cleanPhone = customerPhone.replace("-", "").replace(" ", "").trim()
+        if (cleanPhone.length < 11) {
+            return Result.failure(IllegalArgumentException("১১ ডিজিটের গ্রাহকের মোবাইল নম্বর লিখুন"))
+        }
+
+        val cleanAddress = deliveryAddress.trim()
+        if (cleanAddress.length < 5) {
+            return Result.failure(IllegalArgumentException("সম্পূর্ণ ডেলিভারি ঠিকানা লিখুন"))
+        }
+
+        if (customerSellingPrice < product.wholesalePrice) {
+            return Result.failure(IllegalArgumentException("বিক্রয় মূল্য অবশ্যই পাইকারি মূল্যের (৳${product.wholesalePrice.toInt()}) সমান বা বেশি হতে হবে"))
+        }
+
+        val deliveryCharge = if (isInsideDhaka) product.deliveryChargeInsideDhaka else product.deliveryChargeOutsideDhaka
+        val totalCustomerPayable = (customerSellingPrice * quantity) + deliveryCharge
+        val resellerProfit = (customerSellingPrice - product.wholesalePrice) * quantity
+
+        // Advance delivery charge deducted from reseller wallet
+        if (user.balance < deliveryCharge) {
+            return Result.failure(IllegalStateException("অগ্রিম ডেলিভারি চার্জের জন্য আপনার ওয়ালেটে পর্যাপ্ত ব্যালেন্স নেই (প্রয়োজন: ৳${deliveryCharge.toInt()})"))
+        }
+
+        val newBalance = user.balance - deliveryCharge
+        val orderId = "ORD-" + (100000..999999).random()
+        val trxId = "TRX-" + (1000000..9999999).random()
+
+        val order = ResellingOrder(
+            id = orderId,
+            productTitle = product.title,
+            productCode = product.productCode,
+            quantity = quantity,
+            wholesalePrice = product.wholesalePrice,
+            customerSellingPrice = customerSellingPrice,
+            resellerProfit = resellerProfit,
+            deliveryCharge = deliveryCharge,
+            totalCustomerPayable = totalCustomerPayable,
+            customerName = cleanName,
+            customerPhone = cleanPhone,
+            deliveryAddress = cleanAddress,
+            district = district,
+            deliveryArea = if (isInsideDhaka) "ঢাকার ভেতরে" else "ঢাকার বাইরে",
+            status = "প্রসেসিং",
+            timestamp = System.currentTimeMillis(),
+            transactionRef = trxId
+        )
+
+        _currentUser.value = user.copy(balance = newBalance)
+        _resellingOrders.value = listOf(order) + _resellingOrders.value
+
+        // Deduct from cart if present
+        removeFromCart(product.id)
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.WITHDRAWAL,
+            amount = -deliveryCharge,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "রিসেলিং অর্ডার অগ্রিম ডেলিভারি চার্জ: ${product.title} (অর্ডার: $orderId)",
+            paymentMethod = "ওয়ালেট ব্যালেন্স",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "রিসেলিং অর্ডার সফল! 🛍️",
+            message = "অর্ডার #$orderId সফলভাবে গ্রহণ করা হয়েছে। সম্ভাব্য লাভ ৳${resellerProfit.toInt()} ডেলিভারি শেষে জমা হবে।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(order)
+    }
+
+    private fun getInitialResellingOrders(): List<ResellingOrder> = listOf(
+        ResellingOrder(
+            id = "ORD-849101",
+            productTitle = "TWS Pro 2 ওয়্যারলেস ব্লুটুথ এয়ারবাডস (ANC)",
+            productCode = "SKU-EL-303",
+            quantity = 1,
+            wholesalePrice = 420.0,
+            customerSellingPrice = 790.0,
+            resellerProfit = 370.0,
+            deliveryCharge = 70.0,
+            totalCustomerPayable = 860.0,
+            customerName = "মোঃ রাকিবুল হাসান",
+            customerPhone = "01798123456",
+            deliveryAddress = "বাড়ি ১২, রোড ৫, মিরপুর ১০, ঢাকা",
+            district = "ঢাকা",
+            deliveryArea = "ঢাকার ভেতরে",
+            status = "ডেলিভার্ড",
+            timestamp = System.currentTimeMillis() - 86400000L * 3,
+            transactionRef = "TRX-7821901"
+        ),
+        ResellingOrder(
+            id = "ORD-849102",
+            productTitle = "প্রিমিয়াম ডিজাইনার সিল্ক পাঞ্জাবি কালেকশন",
+            productCode = "SKU-MN-101",
+            quantity = 1,
+            wholesalePrice = 580.0,
+            customerSellingPrice = 950.0,
+            resellerProfit = 370.0,
+            deliveryCharge = 130.0,
+            totalCustomerPayable = 1080.0,
+            customerName = "কামরুল ইসলাম",
+            customerPhone = "01819765432",
+            deliveryAddress = "জিইসি মোড়, চকবাজার, চট্টগ্রাম",
+            district = "চট্টগ্রাম",
+            deliveryArea = "ঢাকার বাইরে",
+            status = "প্রসেসিং",
+            timestamp = System.currentTimeMillis() - 3600000L * 5,
+            transactionRef = "TRX-7821902"
+        )
+    )
+
+    fun getAllResellingProducts(): List<ResellingProduct> = listOf(
+        ResellingProduct(
+            id = "prod_1",
+            productCode = "SKU-MN-101",
+            title = "প্রিমিয়াম ডিজাইনার সিল্ক পাঞ্জাবি কালেকশন",
+            category = ResellingCategory.MENS_FASHION,
+            wholesalePrice = 580.0,
+            maxRetailPrice = 950.0,
+            suggestedProfit = 370.0,
+            stockQuantity = 240,
+            rating = 4.9,
+            reviewCount = 88,
+            description = "উচ্চমানের সিল্কি ফেব্রিক ও আকর্ষনীয় সুতার এমব্রয়ডারি কাজ করা। ঈদের ও পার্টি পরিধানের জন্য সেরা পছন্দ। ১০০% কালার গ্যারান্টি।",
+            shortSpecs = listOf("সাইজ: 40, 42, 44", "ফেব্রিক: প্রিমিয়াম সেমি-সিল্ক", "কালার: রয়াল ব্লু / নেভি ব্লু", "কোয়ালিটি: এক্সপোর্ট"),
+            isHotDeal = true,
+            tag = "হট ডিল"
+        ),
+        ResellingProduct(
+            id = "prod_2",
+            productCode = "SKU-WM-202",
+            title = "কাতান সিল্ক ঐতিহ্যবাহী শাড়ি (ব্লাউজ পিস সহ)",
+            category = ResellingCategory.WOMENS_FASHION,
+            wholesalePrice = 750.0,
+            maxRetailPrice = 1250.0,
+            suggestedProfit = 500.0,
+            stockQuantity = 180,
+            rating = 4.8,
+            reviewCount = 65,
+            description = "আকর্ষণীয় মিরর ওয়ার্ক ও ঐতিহ্যবাহী আঁচল ডিজাইনের কাতান শাড়ি। যেকোনো উৎসব ও অনুষ্ঠানে আভিজাত্যের ছোঁয়া।",
+            shortSpecs = listOf("দৈর্ঘ্য: ১২ হাত + ব্লাউজ পিস", "উপাদান: সফট কাতান সিল্ক", "কালার গ্যারান্টি", "রেডি স্টক"),
+            isHotDeal = true,
+            tag = "জনপ্রিয়"
+        ),
+        ResellingProduct(
+            id = "prod_3",
+            productCode = "SKU-EL-303",
+            title = "TWS Pro 2 ওয়্যারলেস ব্লুটুথ এয়ারবাডস (ANC)",
+            category = ResellingCategory.ELECTRONICS,
+            wholesalePrice = 420.0,
+            maxRetailPrice = 790.0,
+            suggestedProfit = 370.0,
+            stockQuantity = 310,
+            rating = 4.7,
+            reviewCount = 142,
+            description = "এক্টিভ নয়েজ ক্যান্সেলেশন, ক্রিস্টাল ক্লিয়ার বেস ও ৩০ ঘণ্টা পর্যন্ত ব্যাটারি ব্যাকআপ। টাইপ-সি ফাস্ট চার্জিং সুবিধা।",
+            shortSpecs = listOf("ব্লুটুথ: v5.3", "প্লে-টাইম: ৬+২৪ ঘণ্টা", "স্মার্ট টাচ কন্ট্রোল", "ওয়াটারপ্রুফ IPX5"),
+            isHotDeal = true,
+            tag = "সেরা অফার"
+        ),
+        ResellingProduct(
+            id = "prod_4",
+            productCode = "SKU-WT-404",
+            title = "আল্ট্রা স্মার্টওয়াচ সিরিজ ৯ (কলিং ও হেলথ ট্র্যাকার)",
+            category = ResellingCategory.WATCHES,
+            wholesalePrice = 850.0,
+            maxRetailPrice = 1450.0,
+            suggestedProfit = 600.0,
+            stockQuantity = 195,
+            rating = 4.9,
+            reviewCount = 110,
+            description = "২.০২ ইঞ্চি ফুল এইচডি বেজেললেস ডিসপ্লে। ব্লুটুথ কলিং, হার্টরেট ও ব্লাড প্রেসার মনিটরিং, ওয়্যারলেস চার্জার সহ।",
+            shortSpecs = listOf("ডিসপ্লে: 2.02\" HD Retina", "ব্লুটুথ কলিং ও নোটিফিকেশন", "ডাবল স্ট্র্যাপ সহ", "মেটাল বডি"),
+            isHotDeal = true,
+            tag = "বেশি লাভ"
+        ),
+        ResellingProduct(
+            id = "prod_5",
+            productCode = "SKU-BT-505",
+            title = "অর্গানিক ব্রাইটেনিং ফেস সিরাম ও ডে ক্রিম কম্বো",
+            category = ResellingCategory.BEAUTY,
+            wholesalePrice = 320.0,
+            maxRetailPrice = 650.0,
+            suggestedProfit = 330.0,
+            stockQuantity = 280,
+            rating = 4.8,
+            reviewCount = 76,
+            description = "ভিটামিন সি ও হায়ালুরোনিক অ্যাসিড সমৃদ্ধ। ত্বকের কালচে দাগ দূর করে প্রাকৃতিক উজ্জ্বলতা বৃদ্ধি করে।",
+            shortSpecs = listOf("সিরাম: 30ml", "ডে ক্রিম: 50g", "সব ধরণের ত্বকের উপযোগী", "বিএসটিআই অনুমোদিত"),
+            isHotDeal = false,
+            tag = "ন্যাচারাল"
+        ),
+        ResellingProduct(
+            id = "prod_6",
+            productCode = "SKU-HM-606",
+            title = "পোর্টেবল রিচার্জেবল মিনি জুসার ব্লেন্ডার",
+            category = ResellingCategory.HOME_LIVING,
+            wholesalePrice = 480.0,
+            maxRetailPrice = 850.0,
+            suggestedProfit = 370.0,
+            stockQuantity = 140,
+            rating = 4.6,
+            reviewCount = 52,
+            description = "ইউএসবি রিচার্জেবল ৬-ব্লেড মিনি ব্লেন্ডার। যেকোনো ফ্রুট জুস, স্মুদি বা মিল্কশেক তৈরিতে আদর্শ। সহজে বহনযোগ্য।",
+            shortSpecs = listOf("ব্যাটারি: 2000mAh USB", "ব্লেড: ৬টি স্টেইনলেস স্টিল", "ক্যাপাসিটি: 380ml", "সহজে পরিষ্কারযোগ্য"),
+            isHotDeal = false,
+            tag = "হোম স্পেশাল"
+        ),
+        ResellingProduct(
+            id = "prod_7",
+            productCode = "SKU-FT-707",
+            title = "মেনস প্রিমিয়াম লেদার ক্যাজুয়াল লোফার শু",
+            category = ResellingCategory.FOOTWEAR,
+            wholesalePrice = 650.0,
+            maxRetailPrice = 1150.0,
+            suggestedProfit = 500.0,
+            stockQuantity = 160,
+            rating = 4.8,
+            reviewCount = 49,
+            description = "সফট পিইউ লেদার এবং আরামদায়ক মেমোরি ফোম ইনসোল। অফিস ও ক্যাজুয়াল ব্যবহারের জন্য অত্যন্ত টেকসই ও আরামদায়ক।",
+            shortSpecs = listOf("সাইজ: 40, 41, 42, 43", "উপাদান: হাই কোয়ালিটি লেদার", "নন-স্লিপ সোল", "কালার: ব্ল্যাক ও ব্রাউন"),
+            isHotDeal = true,
+            tag = "হট ডিল"
+        ),
+        ResellingProduct(
+            id = "prod_8",
+            productCode = "SKU-MN-108",
+            title = "ড্রপ শোল্ডার ওভারসাইজড কটন টি-শার্ট (কম্বো ৩টি)",
+            category = ResellingCategory.MENS_FASHION,
+            wholesalePrice = 520.0,
+            maxRetailPrice = 890.0,
+            suggestedProfit = 370.0,
+            stockQuantity = 210,
+            rating = 4.7,
+            reviewCount = 95,
+            description = "১৮০+ জিএসএম ১০০% কম্বড সুতির ড্রপ শোল্ডার টি-শার্ট কম্বো। গরমে আরামদায়ক ও ফ্যাশনেবল।",
+            shortSpecs = listOf("প্যাক: ৩টি টি-শার্ট", "ফেব্রিক: 100% Combed Cotton", "জিএসএম: 180+", "কালার: ব্ল্যাক, হোয়াইট, অলিভ"),
+            isHotDeal = false,
+            tag = "কম্বো অফার"
+        ),
+        ResellingProduct(
+            id = "prod_9",
+            productCode = "SKU-EL-309",
+            title = "ওয়্যারলেস ফাস্ট চার্জিং ২০,০০০ mAh পাওয়ার ব্যাংক",
+            category = ResellingCategory.ELECTRONICS,
+            wholesalePrice = 680.0,
+            maxRetailPrice = 1180.0,
+            suggestedProfit = 500.0,
+            stockQuantity = 175,
+            rating = 4.9,
+            reviewCount = 120,
+            description = "২২.৫ ওয়াট সুপার ফাস্ট চার্জিং ও ডিজিটাল এলইডি ডিসপ্লে। একসাথে ৩টি ডিভাইস চার্জ করার সুবিধা।",
+            shortSpecs = listOf("ক্যাপাসিটি: 20000mAh", "আউটপুট: 22.5W Fast Charge", "পোর্ট: Type-C PD + 2 USB", "ডিজিটাল ডিসপ্লে"),
+            isHotDeal = true,
+            tag = "জনপ্রিয়"
+        )
+    )
+
+    fun getFreelancingCourses(): List<FreelancingCourse> = listOf(
+        FreelancingCourse(
+            id = "course_capcut",
+            title = "CapCut Video Editing CourseVideo",
+            price = 50.0,
+            priceBengali = "৳ ৫০",
+            drawableResName = "img_capcut_course",
+            description = "মোবাইলে প্রফেশনাল ভিডিও এডিটিং শিখুন জিরো টু হিরো। CapCut-এর সকল টুলস, ট্রানজিশন, এফেক্টস, কালার গ্রেডিং ও অডিও এডিটিং সম্পূর্ণ বাংলায়।",
+            lessonsCount = 10,
+            totalHours = "৩ ঘণ্টা ২০ মিনিট"
+        ),
+        FreelancingCourse(
+            id = "course_adsterra",
+            title = "Adsterra Premium CourseVideo 2025",
+            price = 50.0,
+            priceBengali = "৳ ৫০",
+            drawableResName = "img_adsterra_course",
+            description = "ওয়েবসাইট ও ব্লগে Adsterra অ্যাড বসিয়ে প্রিমিয়াম প্যাসিভ ইনকাম করার সম্পূর্ণ গাইডলাইন। জিরো থেকে সফল হওয়ার সম্পূর্ণ সিক্রেট মেথড।",
+            lessonsCount = 12,
+            totalHours = "৪ ঘণ্টা ১৫ মিনিট"
+        )
+    )
+
+    suspend fun purchaseCourse(course: FreelancingCourse): Result<CourseOrder> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        if (user.balance < course.price) {
+            return Result.failure(IllegalStateException("কোর্সটি কেনার জন্য ওয়ালেটে পর্যাপ্ত ব্যালেন্স নেই (প্রয়োজন: ৳${course.price.toInt()}, বর্তমান ব্যালেন্স: ৳${user.balance.toInt()})"))
+        }
+
+        val newBalance = user.balance - course.price
+        val orderId = "CRS-" + (100000..999999).random()
+        val trxId = "TRX-" + (1000000..9999999).random()
+
+        val order = CourseOrder(
+            id = orderId,
+            courseId = course.id,
+            courseTitle = course.title,
+            price = course.price,
+            timestamp = System.currentTimeMillis(),
+            transactionRef = trxId
+        )
+
+        _currentUser.value = user.copy(balance = newBalance)
+        _purchasedCourseIds.value = _purchasedCourseIds.value + course.id
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.WITHDRAWAL,
+            amount = -course.price,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "কোর্স ক্রয়: ${course.title} (অর্ডার: $orderId)",
+            paymentMethod = "ওয়ালেট ব্যালেন্স",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "কোর্স ক্রয় সফল! 🎓",
+            message = "আপনি সফলভাবে '${course.title}' কোর্সে এনরোল করেছেন। এখন টিউটোরিয়াল ও ভিডিও দেখতে পারবেন।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(order)
+    }
+
+    // --- Online Service Operations ---
+
+    fun getOnlineServices(): List<OnlineServiceItem> = listOf(
+        OnlineServiceItem(
+            id = "service_fb_pro",
+            title = "Facebook v585.0.0.41.75 — Premium Unlocked",
+            price = 30.0,
+            priceDisplay = "Price ৳ 30.00",
+            resellingPrice = 50.0,
+            resellingPriceDisplay = "Reselling Price ৳ 50.00",
+            isNew = true,
+            category = "Digital Product",
+            description = "Facebook official latest build with all pro features, ad-free experience, high-speed HD media downloader, story privacy mode, and background audio playback.",
+            downloadUrl = "https://rootva.app/download/facebook-v585-premium.apk"
+        ),
+        OnlineServiceItem(
+            id = "service_wa_ultra",
+            title = "WhatsApp Ultra Plus v21.40 — Anti-Ban Pro",
+            price = 30.0,
+            priceDisplay = "Price ৳ 30.00",
+            resellingPrice = 50.0,
+            resellingPriceDisplay = "Reselling Price ৳ 50.00",
+            isNew = true,
+            category = "Digital Product",
+            description = "Anti-delete messages & status, freeze last seen, custom themes, send up to 1GB HD files, mass sender, dual account support.",
+            downloadUrl = "https://rootva.app/download/whatsapp-ultra-pro.apk"
+        ),
+        OnlineServiceItem(
+            id = "service_capcut_vip",
+            title = "CapCut Pro v12.8.0 — VIP All Filters Unlocked",
+            price = 35.0,
+            priceDisplay = "Price ৳ 35.00",
+            resellingPrice = 60.0,
+            resellingPriceDisplay = "Reselling Price ৳ 60.00",
+            isNew = true,
+            category = "Video Editor Tool",
+            description = "No watermark, 4K 60FPS export, pro transitions, auto captions, slow motion smooth optical flow, all VIP effects unlocked.",
+            downloadUrl = "https://rootva.app/download/capcut-vip-pro.apk"
+        ),
+        OnlineServiceItem(
+            id = "service_canva_edu",
+            title = "Canva Pro Premium Lifetime Edu Access",
+            price = 40.0,
+            priceDisplay = "Price ৳ 40.00",
+            resellingPrice = 70.0,
+            resellingPriceDisplay = "Reselling Price ৳ 70.00",
+            isNew = false,
+            category = "Design Tool",
+            description = "Brand kits, magic resize, background remover, millions of premium photos, audio tracks, and templates unlocked.",
+            downloadUrl = "https://rootva.app/download/canva-pro-invite"
+        )
+    )
+
+    private fun getInitialOnlineServiceOrders(): List<OnlineServiceOrder> = listOf(
+        OnlineServiceOrder(
+            id = "SRV-912041",
+            serviceId = "service_fb_pro",
+            serviceTitle = "Facebook v585.0.0.41.75 — Premium Unlocked",
+            price = 30.0,
+            timestamp = System.currentTimeMillis() - 86400000L * 1,
+            downloadUrl = "https://rootva.app/download/facebook-v585-premium.apk",
+            status = "সফল"
+        )
+    )
+
+    suspend fun purchaseOnlineService(service: OnlineServiceItem): Result<OnlineServiceOrder> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        if (user.balance < service.price) {
+            return Result.failure(IllegalStateException("সার্ভিসটি কেনার জন্য ওয়ালেটে পর্যাপ্ত ব্যালেন্স নেই (প্রয়োজন: ৳${service.price.toInt()}, বর্তমান ব্যালেন্স: ৳${user.balance.toInt()})"))
+        }
+
+        val newBalance = user.balance - service.price
+        val orderId = "SRV-" + (100000..999999).random()
+        val trxId = "TRX-" + (1000000..9999999).random()
+
+        val order = OnlineServiceOrder(
+            id = orderId,
+            serviceId = service.id,
+            serviceTitle = service.title,
+            price = service.price,
+            timestamp = System.currentTimeMillis(),
+            downloadUrl = service.downloadUrl,
+            status = "সফল"
+        )
+
+        _currentUser.value = user.copy(balance = newBalance)
+        _onlineServiceOrders.value = listOf(order) + _onlineServiceOrders.value
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.WITHDRAWAL,
+            amount = -service.price,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "অনলাইন সার্ভিস: ${service.title} (অর্ডার: $orderId)",
+            paymentMethod = "ওয়ালেট ব্যালেন্স",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "অনলাইন সার্ভিস সফল! ⚡",
+            message = "'${service.title}' সফলভাবে অর্ডার সম্পন্ন হয়েছে। ডাউনলোড লিংক আনলক হয়েছে।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(order)
+    }
+
+    // --- Micro Jobs Operations ---
+
+    fun getMicroJobs(): List<MicroJobItem> = listOf(
+        MicroJobItem(
+            id = "mj_1",
+            serialNumber = 1,
+            title = "Facebook",
+            reward = 0.5,
+            rewardDisplay = "Reward: 0.5৳",
+            platform = "Facebook",
+            instructions = "আমাদের ফেসবুক পেজে প্রবেশ করুন। পেজে 'লাইক' এবং 'ফলো' করুন। আপনার ফেসবুক প্রোফাইলের ইউজারনেম বা লিংক নিচে প্রুফ বক্সে দিন।",
+            targetUrl = "https://facebook.com",
+            requiresScreenshot = true
+        ),
+        MicroJobItem(
+            id = "mj_2",
+            serialNumber = 2,
+            title = "📢 **YouTube ভিডিও দেখুন, কাজ",
+            reward = 0.5,
+            rewardDisplay = "Reward: 0.5৳",
+            platform = "YouTube",
+            instructions = "ইউটিউব ভিডিওটি অন্তত ৩ মিনিট দেখুন। ভিডিওতে লাইক দিন এবং চ্যানেলটি সাবস্ক্রাইব করুন। আপনার ইউটিউব চ্যানেলের নাম প্রুফ বক্সে দিন।",
+            targetUrl = "https://youtube.com",
+            requiresScreenshot = true
+        ),
+        MicroJobItem(
+            id = "mj_3",
+            serialNumber = 3,
+            title = "ভিডিও শুরু থেকে _ শেষ পর্যন্ত সম্পূর্ণ দেখা লাগবে ✅",
+            reward = 0.5,
+            rewardDisplay = "Reward: 0.5৳",
+            platform = "YouTube",
+            instructions = "ভিডিওটি শুরু থেকে শেষ পর্যন্ত সম্পূর্ণ দেখুন, কোনো স্কিপ করা যাবে না। শেষে ভিডিওর একটি প্রাসঙ্গিক মন্তব্য করুন এবং কমেন্টের স্ক্রিনশট দিন।",
+            targetUrl = "https://youtube.com",
+            requiresScreenshot = true
+        ),
+        MicroJobItem(
+            id = "mj_4",
+            serialNumber = 4,
+            title = "YouTube ভিডিও দেখুন, কাজ সম্পন্ন করুন এবং প্রুফ...",
+            reward = 0.5,
+            rewardDisplay = "Reward: 0.5৳",
+            platform = "YouTube",
+            instructions = "প্রোডাক্ট রিভিউ ভিডিওটি ফুল দেখুন। লাইক ও শেয়ার বাটনে ক্লিক করে সোশ্যাল মিডিয়ায় শেয়ার করুন এবং প্রমাণস্বরূপ লিংক সাবমিট করুন।",
+            targetUrl = "https://youtube.com",
+            requiresScreenshot = true
+        )
+    )
+
+    suspend fun submitMicroJobProof(job: MicroJobItem, proofText: String): Result<MicroJobSubmission> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        if (proofText.trim().length < 3) {
+            return Result.failure(IllegalArgumentException("সঠিক প্রমাণ বা লিংক প্রদান করুন"))
+        }
+
+        val submissionId = "SUB-" + (100000..999999).random()
+        val trxId = "TRX-" + (1000000..9999999).random()
+
+        val submission = MicroJobSubmission(
+            id = submissionId,
+            jobId = job.id,
+            jobTitle = job.title,
+            reward = job.reward,
+            userProofText = proofText.trim(),
+            timestamp = System.currentTimeMillis(),
+            status = "অনুমোদিত"
+        )
+
+        // Credit reward to user balance
+        val newBalance = user.balance + job.reward
+        _currentUser.value = user.copy(balance = newBalance)
+        _completedMicroJobIds.value = _completedMicroJobIds.value + job.id
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.TASK_INCOME,
+            amount = job.reward,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "মাইক্রো জব সম্পন্ন: ${job.title}",
+            paymentMethod = "মাইক্রো জব রিওয়ার্ড",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "মাইক্রো জব রিওয়ার্ড ক্রেডিট! 💰",
+            message = "'${job.title}' সফলভাবে সম্পন্ন করার জন্য আপনার ওয়ালেটে ৳${String.format(java.util.Locale.US, "%.2f", job.reward)} যোগ করা হয়েছে।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(submission)
+    }
+
+    // --- Dollar Income (Watch Ad & Earn Bot) ---
+
+    suspend fun completeDollarIncomeAdTask(reward: Double = 5.0): Result<Double> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        val trxId = "ADTRX-" + (1000000..9999999).random()
+        val newBalance = user.balance + reward
+        _currentUser.value = user.copy(balance = newBalance)
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.TASK_INCOME,
+            amount = reward,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "Dollar Income: Watch Ad & Earn (15s)",
+            paymentMethod = "Ad Bot Reward",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "Dollar Income রিওয়ার্ড ক্রেডিট! 🤑",
+            message = "Watch Ad & Earn টাস্ক সম্পন্ন করার জন্য আপনার ওয়ালেটে ৳${String.format(java.util.Locale.US, "%.2f", reward)} যোগ করা হয়েছে।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(reward)
     }
 }

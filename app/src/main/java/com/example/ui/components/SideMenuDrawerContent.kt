@@ -33,6 +33,12 @@ fun SideMenuDrawerContent(
     user: User,
     onNavigateToHome: () -> Unit,
     onNavigateToMobileRecharge: () -> Unit = {},
+    onNavigateToSimOffer: () -> Unit = {},
+    onNavigateToResellingShop: () -> Unit = {},
+    onNavigateToFreelancingCourse: () -> Unit = {},
+    onNavigateToOnlineService: () -> Unit = {},
+    onNavigateToMicroJobs: () -> Unit = {},
+    onNavigateToDollarIncome: () -> Unit = {},
     onNavigateToAbout: () -> Unit,
     onNavigateToPassiveIncome: () -> Unit,
     onNavigateToSupport: () -> Unit,
@@ -261,6 +267,66 @@ fun SideMenuDrawerContent(
                     onClick = {
                         onCloseDrawer()
                         onNavigateToMobileRecharge()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "সিম অফার (ড্রাইভ)",
+                    icon = Icons.Default.SimCard,
+                    iconColor = Color(0xFF0284C7),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToSimOffer()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "রিসেলিং শপ",
+                    icon = Icons.Default.ShoppingBag,
+                    iconColor = Color(0xFF10B981),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToResellingShop()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "ফ্রিল্যান্সিং কোর্স",
+                    icon = Icons.Default.School,
+                    iconColor = Color(0xFF6366F1),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToFreelancingCourse()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "অনলাইন সার্ভিস",
+                    icon = Icons.Default.Language,
+                    iconColor = Color(0xFF0284C7),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToOnlineService()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "মাইক্রো জব",
+                    icon = Icons.Default.Task,
+                    iconColor = Color(0xFFE60000),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToMicroJobs()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "এড ইনকাম (Dollar Income)",
+                    icon = Icons.Default.MonetizationOn,
+                    iconColor = Color(0xFFF59E0B),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToDollarIncome()
                     }
                 )
 

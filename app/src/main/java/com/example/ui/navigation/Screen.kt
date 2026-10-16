@@ -19,6 +19,12 @@ sealed class Screen(val route: String) {
     object Withdraw : Screen("withdraw")
     object MobileRecharge : Screen("mobile_recharge")
     object SimOffer : Screen("sim_offer")
+    object ResellingShop : Screen("reselling_shop")
+    object FreelancingCourse : Screen("freelancing_course")
+    object OnlineService : Screen("online_service")
+    object MicroJobs : Screen("micro_jobs")
+    object DollarIncome : Screen("dollar_income")
+    object AdsIncome : Screen("ads_income")
     object Transactions : Screen("transactions")
     object TransactionDetails : Screen("transaction_details/{trxId}") {
         fun createRoute(trxId: String) = "transaction_details/$trxId"
