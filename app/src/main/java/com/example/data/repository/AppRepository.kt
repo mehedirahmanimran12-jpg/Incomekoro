@@ -1884,6 +1884,53 @@ class AppRepository(
         return Result.success(order)
     }
 
+    fun getLearningCourseVideos(): List<LearningCourseVideo> = listOf(
+        LearningCourseVideo(
+            id = "vid_1",
+            title = "🎉 Rootva 1 Year Successful Program 🎉 Alhamdulillah!",
+            duration = "Duration: 0:00",
+            progressPercent = 100,
+            isCompleted = true,
+            videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            youtubeVideoId = "dQw4w9WgXcQ",
+            channelName = "Rootva",
+            thumbnailType = 1
+        ),
+        LearningCourseVideo(
+            id = "vid_2",
+            title = "মোবাইল দিয়ে ২ মিনিটে Rootva একাউন্ট খুলুন 😍",
+            duration = "Duration: 0:00",
+            progressPercent = 0,
+            isCompleted = false,
+            videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            youtubeVideoId = "dQw4w9WgXcQ",
+            channelName = "Rootva",
+            thumbnailType = 2
+        ),
+        LearningCourseVideo(
+            id = "vid_3",
+            title = "নতুনদের জন্য রোডভা সিক্রেট | কিভাবে আয় করবেন $450+ লাইভ উত্তোলন ৫০ হাজার #rootva",
+            duration = "Duration: 0:00",
+            progressPercent = 100,
+            isCompleted = true,
+            videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            youtubeVideoId = "dQw4w9WgXcQ",
+            channelName = "Rootva",
+            thumbnailType = 3
+        ),
+        LearningCourseVideo(
+            id = "vid_4",
+            title = "Rootva কাজ সম্পর্কে A to Z বিস্তারিত জেনে নিন |",
+            duration = "Duration: 0:00",
+            progressPercent = 0,
+            isCompleted = false,
+            videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            youtubeVideoId = "dQw4w9WgXcQ",
+            channelName = "Rootva",
+            thumbnailType = 4
+        )
+    )
+
     // --- Online Service Operations ---
 
     fun getOnlineServices(): List<OnlineServiceItem> = listOf(

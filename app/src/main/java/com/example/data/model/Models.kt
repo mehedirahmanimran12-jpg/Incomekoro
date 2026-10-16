@@ -422,6 +422,18 @@ data class CourseOrder(
     val transactionRef: String = ""
 )
 
+data class LearningCourseVideo(
+    val id: String,
+    val title: String,
+    val duration: String = "Duration: 0:00",
+    val progressPercent: Int = 0,
+    val isCompleted: Boolean = false,
+    val videoUrl: String = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    val youtubeVideoId: String = "dQw4w9WgXcQ",
+    val channelName: String = "Rootva",
+    val thumbnailType: Int = 1
+)
+
 data class OnlineServiceItem(
     val id: String,
     val title: String,

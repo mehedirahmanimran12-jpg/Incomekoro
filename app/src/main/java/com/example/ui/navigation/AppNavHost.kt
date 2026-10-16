@@ -216,6 +216,13 @@ fun AppNavHost(
             )
         }
 
+        composable(Screen.Course.route) {
+            FreelancingCourseScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
         composable(Screen.OnlineService.route) {
             OnlineServiceScreen(
                 repository = repository,

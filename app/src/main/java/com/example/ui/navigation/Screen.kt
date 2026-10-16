@@ -21,6 +21,7 @@ sealed class Screen(val route: String) {
     object SimOffer : Screen("sim_offer")
     object ResellingShop : Screen("reselling_shop")
     object FreelancingCourse : Screen("freelancing_course")
+    object Course : Screen("course")
     object OnlineService : Screen("online_service")
     object MicroJobs : Screen("micro_jobs")
     object DollarIncome : Screen("dollar_income")

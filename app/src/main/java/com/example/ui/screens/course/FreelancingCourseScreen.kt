@@ -1,7 +1,11 @@
 package com.example.ui.screens.course
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,14 +13,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,20 +26,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
-import com.example.data.model.CourseOrder
-import com.example.data.model.FreelancingCourse
+import com.example.data.model.LearningCourseVideo
 import com.example.data.repository.AppRepository
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,24 +47,32 @@ fun FreelancingCourseScreen(
     repository: AppRepository,
     onNavigateBack: () -> Unit
 ) {
+    BackHandler(onBack = onNavigateBack)
+
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val initialVideos = remember { repository.getLearningCourseVideos() }
+    var videosList by remember { mutableStateOf(initialVideos) }
+    var searchQuery by remember { mutableStateOf("") }
+    var activeVideo by remember { mutableStateOf(initialVideos.firstOrNull() ?: LearningCourseVideo(
+        id = "default",
+        title = "🎉 Rootva 1 Year Successful Program",
+        thumbnailType = 1
+    )) }
+    var selectedVideoForDialog by remember { mutableStateOf<LearningCourseVideo?>(null) }
 
-    val currentUser by repository.currentUser.collectAsState(initial = null)
-    val purchasedIds by repository.purchasedCourseIds.collectAsState(initial = emptySet())
-    val courses = remember { repository.getFreelancingCourses() }
-    val userBalance = currentUser?.balance ?: 1450.0
-
-    // Dialog & Sheet States
-    var showTutorialDialog by remember { mutableStateOf(false) }
-    var showRulesDialog by remember { mutableStateOf(false) }
-    var courseToOrder by remember { mutableStateOf<FreelancingCourse?>(null) }
-    var courseToWatch by remember { mutableStateOf<FreelancingCourse?>(null) }
-    var successOrder by remember { mutableStateOf<CourseOrder?>(null) }
-    var isProcessingOrder by remember { mutableStateOf(false) }
+    // Filtered video list based on real-time search query
+    val filteredVideos = remember(videosList, searchQuery) {
+        if (searchQuery.isBlank()) {
+            videosList
+        } else {
+            videosList.filter {
+                it.title.contains(searchQuery.trim(), ignoreCase = true)
+            }
+        }
+    }
 
     Scaffold(
-        containerColor = Color.White,
+        containerColor = Color(0xFFF8FAFC),
         topBar = {
             Surface(
                 color = Color(0xFF0055D2),
@@ -72,12 +82,12 @@ fun FreelancingCourseScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                        .padding(horizontal = 6.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = onNavigateBack,
-                        modifier = Modifier.testTag("freelancing_course_back_button")
+                        modifier = Modifier.testTag("course_back_button")
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -87,10 +97,10 @@ fun FreelancingCourseScreen(
                     }
 
                     Text(
-                        text = "Rootva Freelancing Course",
+                        text = "Learning Course",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp
+                            fontSize = 20.sp
                         ),
                         color = Color.White,
                         modifier = Modifier.padding(start = 4.dp)
@@ -99,104 +109,120 @@ fun FreelancingCourseScreen(
             }
         }
     ) { innerPadding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .background(Color(0xFFF8FAFC)),
+            contentPadding = PaddingValues(bottom = 28.dp)
         ) {
-            // Top Action Buttons Row: টিউটোরিয়াল (Red) & নিয়ম (Blue)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // টিউটোরিয়াল Button (Bright Red)
-                Button(
-                    onClick = { showTutorialDialog = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE60000)
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("course_tutorial_button")
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SmartDisplay,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "টিউটোরিয়াল",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+            // 1. YouTube Video Player Hero Area (Matching Screenshot Exactly)
+            item {
+                YouTubePlayerHeroBanner(
+                    video = activeVideo,
+                    onPlayClick = {
+                        selectedVideoForDialog = activeVideo
+                    },
+                    onOpenYouTube = {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(activeVideo.videoUrl))
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "ভিডিও লোড হচ্ছে...", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onShareClick = {
+                        try {
+                            val shareIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                putExtra(Intent.EXTRA_TEXT, "Rootva Learning Course: ${activeVideo.title}\n${activeVideo.videoUrl}")
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "শেয়ার করুন"))
+                        } catch (e: Exception) {
+                            // ignore
+                        }
                     }
-                }
+                )
+            }
 
-                // নিয়ম Button (Royal Blue)
-                Button(
-                    onClick = { showRulesDialog = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0047BA)
-                    ),
+            // 2. Search Input Field (Matching Screenshot: "ভিডিও টাইটেল সার্চ করুন")
+            item {
+                Surface(
+                    color = Color.White,
                     shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    shadowElevation = 1.dp,
                     modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("course_rules_button")
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Article,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color(0xFF0284C7),
+                            modifier = Modifier.size(22.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "নিয়ম",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "ভিডিও টাইটেল সার্চ করুন",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                textStyle = TextStyle(
+                                    color = Color(0xFF1E293B),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                cursorBrush = SolidColor(Color(0xFF0055D2)),
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("course_search_input")
+                            )
+                        }
+
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { searchQuery = "" },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            // Courses Vertical List matching Screenshot exactly
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 24.dp)
-            ) {
-                items(courses, key = { it.id }) { course ->
-                    val isPurchased = purchasedIds.contains(course.id)
-                    FreelancingCourseCard(
-                        course = course,
-                        isPurchased = isPurchased,
-                        onOrderClick = {
-                            if (isPurchased) {
-                                courseToWatch = course
-                            } else {
-                                courseToOrder = course
-                            }
+            // 3. List of Course Video Cards (Matching Screenshot Exactly)
+            items(filteredVideos, key = { it.id }) { video ->
+                Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                    LearningCourseVideoCard(
+                        video = video,
+                        isSelected = video.id == activeVideo.id,
+                        onClick = {
+                            activeVideo = video
+                            selectedVideoForDialog = video
                         }
                     )
                 }
@@ -204,555 +230,611 @@ fun FreelancingCourseScreen(
         }
     }
 
-    // --- Order Confirmation Dialog ---
-    if (courseToOrder != null) {
-        val course = courseToOrder!!
+    // -------------------------------------------------------------
+    // VIDEO PLAYER & LESSON DETAILS DIALOG
+    // -------------------------------------------------------------
+    if (selectedVideoForDialog != null) {
+        val current = selectedVideoForDialog!!
         AlertDialog(
-            onDismissRequest = {
-                if (!isProcessingOrder) courseToOrder = null
-            },
+            onDismissRequest = { selectedVideoForDialog = null },
+            containerColor = Color.White,
             title = {
-                Text(
-                    text = "কোর্স অর্ডার নিশ্চিতকরণ",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    color = Color(0xFF0055D2)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.PlayCircle,
+                        contentDescription = null,
+                        tint = Color(0xFFE60000),
+                        modifier = Modifier.size(26.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "কোর্স ভিডিও টিউটোরিয়াল",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = Color(0xFF0F172A)
+                    )
+                }
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = course.title,
+                        text = current.title,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         color = Color(0xFF1E293B)
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "চ্যানেল: ${current.channelName} • ${current.duration}",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Progress Status Bar
                     Surface(
-                        color = Color(0xFFF8FAFC),
+                        color = if (current.isCompleted) Color(0xFFF0FDF4) else Color(0xFFEFF6FF),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        border = BorderStroke(1.dp, if (current.isCompleted) Color(0xFFBBF7D0) else Color(0xFFBFDBFE)),
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("কোর্স ফি:", fontSize = 13.sp, color = Color(0xFF64748B))
-                                Text(course.priceBengali, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0055D2))
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("আপনার ওয়ালেট ব্যালেন্স:", fontSize = 13.sp, color = Color(0xFF64748B))
-                                Text("৳${userBalance.toInt()}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF10B981))
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "• অর্ডার সম্পন্ন করার সাথে সাথে লাইফটাইম কোর্স ভিডিও আনলক হয়ে যাবে।",
-                        fontSize = 12.sp,
-                        color = Color(0xFF475569)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        isProcessingOrder = true
-                        coroutineScope.launch {
-                            val result = repository.purchaseCourse(course)
-                            isProcessingOrder = false
-                            if (result.isSuccess) {
-                                courseToOrder = null
-                                successOrder = result.getOrNull()
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    result.exceptionOrNull()?.message ?: "অর্ডার সম্পন্ন করা সম্ভব হয়নি",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                    },
-                    enabled = !isProcessingOrder && userBalance >= course.price,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0055D2)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    if (isProcessingOrder) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text("অর্ডার কনফার্ম করুন")
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { courseToOrder = null },
-                    enabled = !isProcessingOrder
-                ) {
-                    Text("বাতিল")
-                }
-            }
-        )
-    }
-
-    // --- Order Placed Success Dialog ---
-    if (successOrder != null) {
-        val order = successOrder!!
-        val purchasedCourse = courses.find { it.id == order.courseId }
-        AlertDialog(
-            onDismissRequest = { successOrder = null },
-            icon = {
-                Box(
-                    modifier = Modifier
-                        .size(54.dp)
-                        .background(Color(0xFFECFDF5), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = Color(0xFF10B981),
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-            },
-            title = {
-                Text(
-                    text = "অভিনন্দন!",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "আপনার কোর্স অর্ডারটি সফল হয়েছে!",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1E293B),
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = order.courseTitle,
-                        fontSize = 13.sp,
-                        color = Color(0xFF0055D2),
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "অর্ডার রেফারেন্স: #${order.id}\nএখনই কোর্সের সকল ভিডিও দেখতে পারেন।",
-                        fontSize = 12.sp,
-                        color = Color(0xFF64748B),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        successOrder = null
-                        if (purchasedCourse != null) {
-                            courseToWatch = purchasedCourse
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0055D2)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("ভিডিও দেখুন 🎬")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { successOrder = null }) {
-                    Text("ঠিক আছে")
-                }
-            }
-        )
-    }
-
-    // --- Tutorial Dialog (টিউটোরিয়াল) ---
-    if (showTutorialDialog) {
-        AlertDialog(
-            onDismissRequest = { showTutorialDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.SmartDisplay,
-                        contentDescription = null,
-                        tint = Color(0xFFE60000),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "টিউটোরিয়াল ও ব্যবহার নির্দেশিকা",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = Color(0xFF0F172A)
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = "Rootva Freelancing Course-এ আপনাকে স্বাগতম!",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = Color(0xFF0055D2)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "১. কিভাবে কোর্স কিনবেন:\nপছন্দের কোর্সের নিচে 'অর্ডার করুন' বাটনে ক্লিক করে ওয়ালেট ব্যালেন্স থেকে ৫০ টাকায় কনফার্ম করুন।\n\n" +
-                                "২. কিভাবে ক্লাস করবেন:\nকোর্স এনরোল হওয়ার পর সরাসরি 'ভিডিও দেখুন' বাটনে চাপ দিয়ে প্রতিটি লেকচার এইচডি কোয়ালিটিতে দেখতে পারবেন।\n\n" +
-                                "৩. সাপোর্ট ও প্র্যাকটিস ফাইল:\nপ্রতিটি কোর্সের ডেসক্রিপশনে প্র্যাকটিস মেটেরিয়াল এবং ক্যাপকাট টেমপ্লেট ডাউনলোড লিংক সংযুক্ত থাকে।",
-                        fontSize = 13.sp,
-                        color = Color(0xFF334155),
-                        lineHeight = 19.sp
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showTutorialDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE60000)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("বুঝেছি")
-                }
-            }
-        )
-    }
-
-    // --- Rules Dialog (নিয়ম) ---
-    if (showRulesDialog) {
-        AlertDialog(
-            onDismissRequest = { showRulesDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Article,
-                        contentDescription = null,
-                        tint = Color(0xFF0047BA),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "কোর্সের নিয়মাবলী ও নীতিমালা",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = Color(0xFF0F172A)
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = "কোর্স ব্যবহারের শর্তসমূহ:",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = Color(0xFF0047BA)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "১. এককালীন ৫০ টাকা ফি পরিশোধে লাইফটাইম অ্যাক্সেস পাওয়া যাবে।\n\n" +
-                                "২. কোর্সের কোনো ভিডিও বা টিউটোরিয়াল কপি, ডাউনলোড করে অন্যত্র বিক্রি বা শেয়ার করা আইনত দণ্ডনীয়।\n\n" +
-                                "৩. কোর্স সংক্রান্ত যেকোনো প্রশ্ন বা সমস্যায় আমাদের হেল্প সেন্টার ২৪/৭ সক্রিয় থাকবে।\n\n" +
-                                "৪. প্রতিটি লেকচার মনোযোগ সহকারে সম্পন্ন করে হোমওয়ার্ক প্র্যাকটিস করুন।",
-                        fontSize = 13.sp,
-                        color = Color(0xFF334155),
-                        lineHeight = 19.sp
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showRulesDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0047BA)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("সম্মতি দিচ্ছি")
-                }
-            }
-        )
-    }
-
-    // --- Course Video Player Sheet ---
-    if (courseToWatch != null) {
-        val course = courseToWatch!!
-        ModalBottomSheet(
-            onDismissRequest = { courseToWatch = null },
-            containerColor = Color.White
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .padding(bottom = 24.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = course.title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color(0xFF0055D2),
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { courseToWatch = null }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Video Player Mockup Box
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF0F172A)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .background(Color.White.copy(alpha = 0.2f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Play",
-                                tint = Color.White,
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "লেকচার ১: কোর্সের মূল পরিচিতি ও সেটআপ",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = "কোর্স সিলেবাস ও লেকচার তালিকা:",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color(0xFF1E293B)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                val lessons = listOf(
-                    "লেকচার ১: ইন্টারফেস ও টুলস পরিচিতি (১৫ মিনিট)",
-                    "লেকচার ২: ভিডিও কাটিং, স্প্লিট ও টাইমিং (২০ মিনিট)",
-                    "লেকচার ৩: সাউন্ড এফেক্ট ও ব্যাকগ্রাউন্ড মিউজিক (১৮ মিনিট)",
-                    "লেকচার ৪: প্রফেশনাল টেক্সট ও অ্যানিমেশন (২২ মিনিট)",
-                    "লেকচার ৫: সিনেমাটিক কালার গ্রেডিং (২৫ মিনিট)",
-                    "লেকচার ৬: ফুল এইচডি রেন্ডার ও আর্নিং স্ট্র্যাটেজি (৩০ মিনিট)"
-                )
-
-                lessons.forEachIndexed { index, lesson ->
-                    Surface(
-                        color = if (index == 0) Color(0xFFEFF6FF) else Color(0xFFF8FAFC),
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (index == 0) Color(0xFF93C5FD) else Color(0xFFE2E8F0)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable {
-                                Toast.makeText(context, "$lesson শুরু হচ্ছে...", Toast.LENGTH_SHORT).show()
-                            }
                     ) {
                         Row(
                             modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(
-                                imageVector = if (index == 0) Icons.Default.PlayCircle else Icons.Default.LockOpen,
-                                contentDescription = null,
-                                tint = if (index == 0) Color(0xFF0055D2) else Color(0xFF10B981),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = lesson,
+                                text = if (current.isCompleted) "অবস্থা: সম্পন্ন (১০০%)" else "অবস্থা: চলমান (০%)",
                                 fontSize = 12.sp,
-                                fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
-                                color = if (index == 0) Color(0xFF0055D2) else Color(0xFF334155)
+                                fontWeight = FontWeight.Bold,
+                                color = if (current.isCompleted) Color(0xFF166534) else Color(0xFF1E40AF)
+                            )
+                            Icon(
+                                imageVector = if (current.isCompleted) Icons.Default.CheckCircle else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = if (current.isCompleted) Color(0xFF166534) else Color(0xFF1E40AF),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Watch on YouTube direct button
+                    Button(
+                        onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(current.videoUrl))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "ইউটিউব ওপেন করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE60000)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp)
+                    ) {
+                        Icon(Icons.Default.SmartDisplay, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("YouTube এ ভিডিও দেখুন", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Toggle Complete Button
+                    OutlinedButton(
+                        onClick = {
+                            val newStatus = !current.isCompleted
+                            val newPercent = if (newStatus) 100 else 0
+                            val updated = current.copy(isCompleted = newStatus, progressPercent = newPercent)
+                            videosList = videosList.map { if (it.id == current.id) updated else it }
+                            if (activeVideo.id == current.id) {
+                                activeVideo = updated
+                            }
+                            selectedVideoForDialog = null
+                            Toast.makeText(
+                                context,
+                                if (newStatus) "টিউটোরিয়াল সম্পন্ন হিসেবে চিহ্নিত হয়েছে! 🎉" else "চলমান হিসেবে রাখা হয়েছে",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(42.dp)
+                    ) {
+                        Text(
+                            text = if (current.isCompleted) "অসম্পূর্ণ চিহ্নিত করুন" else "সম্পূর্ণ চিহ্নিত করুন (১০০%)",
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF0055D2)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedVideoForDialog = null }) {
+                    Text("বন্ধ করুন", color = Color(0xFF64748B))
                 }
             }
-        }
+        )
     }
 }
 
 // -------------------------------------------------------------
-// COURSE CARD MATCHING SCREENSHOT EXACTLY
+// YOUTUBE VIDEO PLAYER HERO BANNER MATCHING SCREENSHOT EXACTLY
 // -------------------------------------------------------------
 @Composable
-fun FreelancingCourseCard(
-    course: FreelancingCourse,
-    isPurchased: Boolean,
-    onOrderClick: () -> Unit
+fun YouTubePlayerHeroBanner(
+    video: LearningCourseVideo,
+    onPlayClick: () -> Unit,
+    onOpenYouTube: () -> Unit,
+    onShareClick: () -> Unit
 ) {
-    Card(
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = Color(0xFF0055D2),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .testTag("course_card_${course.id}")
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Course Banner Image
-            val imageResId = when (course.drawableResName) {
-                "img_capcut_course" -> R.drawable.img_capcut_course
-                "img_adsterra_course" -> R.drawable.img_adsterra_course
-                else -> null
-            }
-
-            if (imageResId != null) {
-                Image(
-                    painter = painterResource(id = imageResId),
-                    contentDescription = course.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                )
-            } else {
-                // High-fidelity fallback banner
-                CourseBannerFallback(course = course)
-            }
-
-            // Title and Price Block
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-            ) {
-                Text(
-                    text = course.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B)
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = course.priceBengali,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B)
-                )
-            }
-
-            // Full-Width Action Button (অর্ডার করুন)
-            Button(
-                onClick = onOrderClick,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isPurchased) Color(0xFF10B981) else Color(0xFF0055D2)
-                ),
-                shape = RoundedCornerShape(0.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .testTag("course_order_button_${course.id}")
-            ) {
-                Text(
-                    text = if (isPurchased) "ভিডিও দেখুন" else "অর্ডার করুন",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------
-// COURSE BANNER FALLBACK (If drawable is loading)
-// -------------------------------------------------------------
-@Composable
-fun CourseBannerFallback(course: FreelancingCourse) {
-    val isCapcut = course.id == "course_capcut"
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
-            .background(
-                Brush.horizontalGradient(
-                    if (isCapcut) listOf(Color(0xFF0B0F19), Color(0xFF1E1B4B))
-                    else listOf(Color(0xFF065F46), Color(0xFF0F172A))
+            .background(Color.Black)
+            .testTag("course_hero_player")
+    ) {
+        // Thumbnail Image
+        Image(
+            painter = painterResource(id = R.drawable.img_learning_course_hero),
+            contentDescription = "Active Course Video",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Dark gradient overlays for readability
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.65f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.75f)
+                        )
+                    )
                 )
-            )
-            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)),
+        )
+
+        // Top Overlay: Channel Avatar & Title
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopStart)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Rootva Monogram Avatar Logo
+            Surface(
+                color = Color(0xFF0284C7),
+                shape = CircleShape,
+                border = BorderStroke(1.5.dp, Color(0xFFFDE047)),
+                modifier = Modifier.size(34.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "R",
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = video.title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = video.channelName,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 11.sp
+                )
+            }
+        }
+
+        // Center: Red YouTube Play Button
+        Surface(
+            color = Color(0xFFFF0000),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(width = 64.dp, height = 42.dp)
+                .clickable { onPlayClick() }
+                .testTag("course_hero_play_button")
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Play Video",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+
+        // Bottom Overlay: Share & "Watch on YouTube"
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Share button
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onShareClick() }
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "Share",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Share",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            // "Watch on YouTube" button
+            Surface(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.clickable { onOpenYouTube() }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Watch on",
+                        color = Color.White,
+                        fontSize = 11.sp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.SmartDisplay,
+                        contentDescription = "YouTube",
+                        tint = Color(0xFFFF0000),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "YouTube",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// COURSE VIDEO LIST CARD MATCHING SCREENSHOT EXACTLY
+// -------------------------------------------------------------
+@Composable
+fun LearningCourseVideoCard(
+    video: LearningCourseVideo,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 1.2.dp,
+            color = if (isSelected) Color(0xFF2563EB) else Color(0xFF93C5FD)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .testTag("course_card_${video.id}")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left Custom Thumbnail Mockup
+            Box(
+                modifier = Modifier
+                    .size(width = 90.dp, height = 62.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            ) {
+                when (video.thumbnailType) {
+                    1 -> CourseThumbnailOneYear()
+                    2 -> CourseThumbnailAccountOpen()
+                    3 -> CourseThumbnailSecretIncome()
+                    4 -> CourseThumbnailDetails()
+                    else -> CourseThumbnailOneYear()
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Middle Content: Title, Duration, Progress Bar
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 6.dp)
+            ) {
+                Text(
+                    text = video.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color(0xFF0F172A),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 17.sp
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Text(
+                    text = video.duration,
+                    fontSize = 11.sp,
+                    color = Color(0xFF64748B),
+                    fontWeight = FontWeight.Medium
+                )
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                // Progress Bar Row with Percentage
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LinearProgressIndicator(
+                        progress = { video.progressPercent / 100f },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(5.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = if (video.progressPercent > 0) Color(0xFF22C55E) else Color(0xFFCBD5E1),
+                        trackColor = Color(0xFFF1F5F9)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = "${video.progressPercent}%",
+                        color = Color(0xFF0055D2),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            // Right Status Badge: Green Checkmark (100%) or Red Play (0%)
+            if (video.progressPercent >= 100) {
+                Surface(
+                    color = Color(0xFF22C55E),
+                    shape = CircleShape,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Completed",
+                            tint = Color.White,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                }
+            } else {
+                Surface(
+                    color = Color(0xFFEF4444),
+                    shape = CircleShape,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// COURSE THUMBNAIL GRAPHIC PREVIEWS MATCHING SCREENSHOT
+// -------------------------------------------------------------
+
+// Thumbnail 1: 1 Year Successful Program
+@Composable
+fun CourseThumbnailOneYear() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F172A))
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.img_learning_course_hero),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+// Thumbnail 2: মোবাইল দিয়ে ২ মিনিটে Rootva একাউন্ট খুলুন
+@Composable
+fun CourseThumbnailAccountOpen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF0284C7), Color(0xFF1E3A8A))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier.padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier
+                    .width(26.dp)
+                    .height(44.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(modifier = Modifier.size(6.dp).background(Color(0xFF0284C7), CircleShape))
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Box(modifier = Modifier.fillMaxWidth().height(3.dp).background(Color(0xFFE2E8F0)))
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Box(modifier = Modifier.fillMaxWidth().height(3.dp).background(Color(0xFFE2E8F0)))
+                }
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+
+            Column {
+                Text(
+                    text = "কীভাবে একাউন্ট",
+                    color = Color(0xFFFDE047),
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "করবেন ফ্রিতে",
+                    color = Color.White,
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Surface(
+                    color = Color(0xFFEF4444),
+                    shape = RoundedCornerShape(2.dp),
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    Text(
+                        text = "২ মিনিটে",
+                        color = Color.White,
+                        fontSize = 6.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Thumbnail 3: নতুনদের জন্য রোডভা সিক্রেট ($450 DOLLAR INCOME)
+@Composable
+fun CourseThumbnailSecretIncome() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF1E1B4B), Color(0xFF0F172A))
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(3.dp)
         ) {
-            Icon(
-                imageVector = if (isCapcut) Icons.Default.VideoCameraBack else Icons.Default.MonetizationOn,
-                contentDescription = null,
-                tint = if (isCapcut) Color(0xFF38BDF8) else Color(0xFF34D399),
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = course.title,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
+                text = "৫০ হাজার পেমেন্ট",
+                color = Color(0xFFFACC15),
+                fontSize = 7.5.sp,
+                fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center
             )
+            Spacer(modifier = Modifier.height(2.dp))
+            Surface(
+                color = Color(0xFF10B981),
+                shape = RoundedCornerShape(2.dp)
+            ) {
+                Text(
+                    text = "$450 DOLLAR",
+                    color = Color.White,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                )
+            }
             Text(
-                text = "ZERO TO HERO",
-                color = Color(0xFFFCD34D),
-                fontSize = 12.sp,
+                text = "লাইভ উত্তোলন",
+                color = Color.White,
+                fontSize = 6.5.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+// Thumbnail 4: Rootva কাজ সম্পর্কে A to Z বিস্তারিত
+@Composable
+fun CourseThumbnailDetails() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF312E81), Color(0xFF1E3A8A))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(3.dp)
+        ) {
+            Text(
+                text = "Rootva কাজ",
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "A to Z বিস্তারিত",
+                color = Color(0xFFFACC15),
+                fontSize = 7.5.sp,
                 fontWeight = FontWeight.ExtraBold
+            )
+            Icon(
+                imageVector = Icons.Default.PlayCircle,
+                contentDescription = null,
+                tint = Color(0xFFEF4444),
+                modifier = Modifier.size(16.dp).padding(top = 1.dp)
             )
         }
     }
