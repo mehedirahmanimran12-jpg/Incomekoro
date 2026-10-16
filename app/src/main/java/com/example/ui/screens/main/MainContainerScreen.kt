@@ -62,6 +62,7 @@ fun MainContainerScreen(
     onNavigateToOnlineService: () -> Unit = {},
     onNavigateToMicroJobs: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
+    onNavigateToLeaderboard: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val currentUser by repository.currentUser.collectAsState(initial = null)
@@ -116,6 +117,10 @@ fun MainContainerScreen(
                 onNavigateToDollarIncome = {
                     coroutineScope.launch { drawerState.close() }
                     onNavigateToDollarIncome()
+                },
+                onNavigateToLeaderboard = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToLeaderboard()
                 },
                 onNavigateToAbout = {
                     infoDialogTitle = "আমাদের সম্পর্কে (About Us)"
@@ -225,6 +230,7 @@ fun MainContainerScreen(
                             onNavigateToOnlineService = onNavigateToOnlineService,
                             onNavigateToMicroJobs = onNavigateToMicroJobs,
                             onNavigateToDollarIncome = onNavigateToDollarIncome,
+                            onNavigateToLeaderboard = onNavigateToLeaderboard,
                             onNavigateToTasks = { selectedTab = MainTab.SHOP },
                             onNavigateToDeposit = onNavigateToDeposit,
                             onNavigateToWithdraw = onNavigateToWithdraw,

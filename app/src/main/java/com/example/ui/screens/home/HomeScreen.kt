@@ -53,6 +53,7 @@ fun HomeScreen(
     onNavigateToOnlineService: () -> Unit = {},
     onNavigateToMicroJobs: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
+    onNavigateToLeaderboard: () -> Unit = {},
     onNavigateToTasks: () -> Unit,
     onNavigateToDeposit: () -> Unit,
     onNavigateToWithdraw: () -> Unit,
@@ -151,7 +152,7 @@ fun HomeScreen(
                             ServiceType.MICRO_JOB, ServiceType.JOB_POST, ServiceType.REVIEW_JOB -> onNavigateToMicroJobs()
                             ServiceType.DAILY_TARGET_BONUS, ServiceType.WEEKLY_BONUS, ServiceType.MONTHLY_SALARY -> onNavigateToDeposit()
                             ServiceType.ADS_INCOME, ServiceType.DOLLAR_INCOME -> onNavigateToDollarIncome()
-                            ServiceType.LEADERSHIP -> onNavigateToReferral()
+                            ServiceType.LEADERBOARD, ServiceType.LEADERSHIP -> onNavigateToLeaderboard()
                             else -> selectedServiceModal = service
                         }
                     }
@@ -165,7 +166,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 18.dp)
-                        .clickable { onNavigateToReferral() }
+                        .clickable { onNavigateToLeaderboard() }
                 ) {
                     Box(
                         modifier = Modifier

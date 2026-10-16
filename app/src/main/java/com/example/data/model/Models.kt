@@ -434,6 +434,15 @@ data class LearningCourseVideo(
     val thumbnailType: Int = 1
 )
 
+data class LeaderboardUser(
+    val rank: Int,
+    val name: String,
+    val affiliateId: String,
+    val memberCountText: String,
+    val memberCount: Int,
+    val avatarType: Int = 1
+)
+
 data class OnlineServiceItem(
     val id: String,
     val title: String,

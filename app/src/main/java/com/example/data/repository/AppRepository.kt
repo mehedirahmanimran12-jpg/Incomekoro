@@ -1931,6 +1931,89 @@ class AppRepository(
         )
     )
 
+    fun getLeaderboardUsers(): List<LeaderboardUser> = listOf(
+        LeaderboardUser(
+            rank = 1,
+            name = "Mohammad Ismail",
+            affiliateId = "#281903",
+            memberCountText = "5118 জন",
+            memberCount = 5118,
+            avatarType = 1
+        ),
+        LeaderboardUser(
+            rank = 2,
+            name = "SAJIDUL TM™",
+            affiliateId = "#193821",
+            memberCountText = "1518 জন",
+            memberCount = 1518,
+            avatarType = 2
+        ),
+        LeaderboardUser(
+            rank = 3,
+            name = "H.M  Jahedol I...",
+            affiliateId = "#204912",
+            memberCountText = "1070 জন",
+            memberCount = 1070,
+            avatarType = 3
+        ),
+        LeaderboardUser(
+            rank = 4,
+            name = "freelancer Likhon",
+            affiliateId = "#184947",
+            memberCountText = "821 জন",
+            memberCount = 821,
+            avatarType = 4
+        ),
+        LeaderboardUser(
+            rank = 5,
+            name = "Rootva Qween",
+            affiliateId = "#222333",
+            memberCountText = "575 জন",
+            memberCount = 575,
+            avatarType = 5
+        ),
+        LeaderboardUser(
+            rank = 6,
+            name = "Amina Khatun",
+            affiliateId = "#176907",
+            memberCountText = "366 জন",
+            memberCount = 366,
+            avatarType = 6
+        ),
+        LeaderboardUser(
+            rank = 7,
+            name = "\"LEADER RONJU\"",
+            affiliateId = "#805089",
+            memberCountText = "341 জন",
+            memberCount = 341,
+            avatarType = 7
+        ),
+        LeaderboardUser(
+            rank = 8,
+            name = "Rootva",
+            affiliateId = "#556912",
+            memberCountText = "269 জন",
+            memberCount = 269,
+            avatarType = 8
+        ),
+        LeaderboardUser(
+            rank = 9,
+            name = "Shahadat Hussain",
+            affiliateId = "#610294",
+            memberCountText = "230 জন",
+            memberCount = 230,
+            avatarType = 9
+        ),
+        LeaderboardUser(
+            rank = 10,
+            name = "MD. Tanvir Ahmed",
+            affiliateId = "#774012",
+            memberCountText = "195 জন",
+            memberCount = 195,
+            avatarType = 10
+        )
+    )
+
     // --- Online Service Operations ---
 
     fun getOnlineServices(): List<OnlineServiceItem> = listOf(

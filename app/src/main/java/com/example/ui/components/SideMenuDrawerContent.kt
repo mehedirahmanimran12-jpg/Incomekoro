@@ -39,6 +39,7 @@ fun SideMenuDrawerContent(
     onNavigateToOnlineService: () -> Unit = {},
     onNavigateToMicroJobs: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
+    onNavigateToLeaderboard: () -> Unit = {},
     onNavigateToAbout: () -> Unit,
     onNavigateToPassiveIncome: () -> Unit,
     onNavigateToSupport: () -> Unit,
@@ -327,6 +328,16 @@ fun SideMenuDrawerContent(
                     onClick = {
                         onCloseDrawer()
                         onNavigateToDollarIncome()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "লিডারবোর্ড (Leaderboard)",
+                    icon = Icons.Default.Leaderboard,
+                    iconColor = Color(0xFF0055D2),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToLeaderboard()
                     }
                 )
 
