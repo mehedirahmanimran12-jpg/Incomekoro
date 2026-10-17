@@ -2468,4 +2468,128 @@ class AppRepository(
 
         return Result.success(reward)
     }
+
+    // --- Leadership Tiers & Rewards ---
+
+    fun getLeadershipTiers(): List<LeadershipTier> = listOf(
+        LeadershipTier(
+            id = "lead_rootva",
+            title = "Rootva Leadership Achievement",
+            tierName = "Rootva Leader",
+            targetReferrals = 10,
+            targetTeamSize = 25,
+            targetResellingSales = 5,
+            cashReward = 1000.0,
+            monthlyRoyaltyPercent = 2.0,
+            giftPerk = "অফিসিয়াল লিডারশিপ সার্টিফিকেট ও মেমেন্টো",
+            specialPerks = listOf(
+                "১০ জন সরাসরি লিডার রেফারেল",
+                "২৫ জন সক্রিয় টিম মেম্বার",
+                "৫টি রিসেলিং অর্ডার সম্পন্ন",
+                "১,০০০৳ এককালীন ক্যাশ বোনাস",
+                "২% আজীবন টিম রয়্যালটি কমিশন"
+            )
+        ),
+        LeadershipTier(
+            id = "lead_silver",
+            title = "Silver Leadership Achievement",
+            tierName = "Silver Leader",
+            targetReferrals = 25,
+            targetTeamSize = 75,
+            targetResellingSales = 15,
+            cashReward = 3000.0,
+            monthlyRoyaltyPercent = 3.5,
+            giftPerk = "স্মার্ট ওয়াচ ও ব্র্যান্ডেড টি-শার্ট গিফট প্যাক",
+            specialPerks = listOf(
+                "২৫ জন সরাসরি লিডার রেফারেল",
+                "৭৫ জন সক্রিয় টিম মেম্বার",
+                "১৫টি রিসেলিং অর্ডার সম্পন্ন",
+                "৩,০০০৳ এককালীন ক্যাশ বোনাস",
+                "৩.৫% আজীবন টিম রয়্যালটি কমিশন"
+            )
+        ),
+        LeadershipTier(
+            id = "lead_gold",
+            title = "Gold Leadership Achievement",
+            tierName = "Gold Leader",
+            targetReferrals = 50,
+            targetTeamSize = 200,
+            targetResellingSales = 35,
+            cashReward = 8000.0,
+            monthlyRoyaltyPercent = 5.0,
+            giftPerk = "ব্র্যান্ডেড স্মার্টফোন ও কক্সবাজার ৩ দিন ট্যুর",
+            specialPerks = listOf(
+                "৫০ জন সরাসরি লিডার রেফারেল",
+                "২০০ জন সক্রিয় টিম মেম্বার",
+                "৩৫টি রিসেলিং অর্ডার সম্পন্ন",
+                "৮,০০০৳ এককালীন ক্যাশ বোনাস",
+                "৫.০% আজীবন টিম রয়্যালটি কমিশন"
+            )
+        ),
+        LeadershipTier(
+            id = "lead_diamond",
+            title = "Diamond Leadership Achievement",
+            tierName = "Diamond Leader",
+            targetReferrals = 100,
+            targetTeamSize = 500,
+            targetResellingSales = 80,
+            cashReward = 20000.0,
+            monthlyRoyaltyPercent = 7.5,
+            giftPerk = "ল্যাপটপ ও ভারত/থাইল্যান্ড এক্সক্লুসিভ ট্যুর",
+            specialPerks = listOf(
+                "১০০ জন সরাসরি লিডার রেফারেল",
+                "৫০০ জন সক্রিয় টিম মেম্বার",
+                "৮০টি রিসেলিং অর্ডার সম্পন্ন",
+                "২০,০০০৳ এককালীন ক্যাশ বোনাস",
+                "৭.৫% আজীবন টিম রয়্যালটি কমিশন"
+            )
+        ),
+        LeadershipTier(
+            id = "lead_crown",
+            title = "Crown Leadership Achievement",
+            tierName = "Crown Leader",
+            targetReferrals = 250,
+            targetTeamSize = 1500,
+            targetResellingSales = 200,
+            cashReward = 50000.0,
+            monthlyRoyaltyPercent = 10.0,
+            giftPerk = "মোটরবাইক অথবা হজ্ব/ওমরাহ সম্পূর্ণ প্যাকেজ",
+            specialPerks = listOf(
+                "২৫০ জন সরাসরি লিডার রেফারেল",
+                "১,৫০০ জন সক্রিয় টিম মেম্বার",
+                "২০০টি রিসেলিং অর্ডার সম্পন্ন",
+                "৫০,০০০৳ এককালীন মেগা ক্যাশ বোনাস",
+                "১০.০% আজীবন টিম রয়্যালটি কমিশন"
+            )
+        )
+    )
+
+    suspend fun claimLeadershipReward(tier: LeadershipTier): Result<Double> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        val trxId = "LEAD-" + (1000000..9999999).random()
+        val newBalance = user.balance + tier.cashReward
+        _currentUser.value = user.copy(balance = newBalance)
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.BONUS,
+            amount = tier.cashReward,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "${tier.title} বোনাস অর্জিত",
+            paymentMethod = "লিডারশিপ অ্যাচিভমেন্ট বোনাস",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "${tier.tierName} বোনাস ক্রেডিট! 🏆",
+            message = "অভিনন্দন! ${tier.title} সফলভাবে অর্জনের জন্য ৳${String.format(java.util.Locale.US, "%.2f", tier.cashReward)} আপনার ওয়ালেটে জমা হয়েছে।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(tier.cashReward)
+    }
 }

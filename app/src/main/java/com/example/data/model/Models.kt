@@ -520,3 +520,16 @@ data class MathProblem(
         get() = "$num1 $operator $num2 = ?"
 }
 
+data class LeadershipTier(
+    val id: String,
+    val title: String,
+    val tierName: String,
+    val targetReferrals: Int,
+    val targetTeamSize: Int,
+    val targetResellingSales: Int,
+    val cashReward: Double,
+    val monthlyRoyaltyPercent: Double,
+    val giftPerk: String,
+    val specialPerks: List<String>
+)
+

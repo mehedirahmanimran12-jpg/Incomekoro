@@ -23,9 +23,11 @@ import com.example.ui.screens.service.OnlineServiceScreen
 import com.example.ui.screens.jobs.MicroJobsScreen
 import com.example.ui.screens.jobs.ReviewJobScreen
 import com.example.ui.screens.game.MathGameScreen
+import com.example.ui.screens.bonus.DailyTargetBonusScreen
 import com.example.ui.screens.income.AdsIncomeScreen
 import com.example.ui.screens.income.DollarIncomeScreen
 import com.example.ui.screens.leaderboard.LeaderboardScreen
+import com.example.ui.screens.leadership.LeadershipScreen
 import com.example.ui.screens.recharge.MobileRechargeScreen
 import com.example.ui.screens.splash.SplashScreen
 import com.example.ui.screens.support.*
@@ -141,6 +143,8 @@ fun AppNavHost(
                 onNavigateToAdsIncome = { navController.navigate(Screen.AdsIncome.route) },
                 onNavigateToDollarIncome = { navController.navigate(Screen.DollarIncome.route) },
                 onNavigateToLeaderboard = { navController.navigate(Screen.Leaderboard.route) },
+                onNavigateToLeadership = { navController.navigate(Screen.Leadership.route) },
+                onNavigateToDailyTargetBonus = { navController.navigate(Screen.DailyTargetBonus.route) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
@@ -275,6 +279,20 @@ fun AppNavHost(
 
         composable(Screen.Leaderboard.route) {
             LeaderboardScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Leadership.route) {
+            LeadershipScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.DailyTargetBonus.route) {
+            DailyTargetBonusScreen(
                 repository = repository,
                 onNavigateBack = { navController.popBackStack() }
             )

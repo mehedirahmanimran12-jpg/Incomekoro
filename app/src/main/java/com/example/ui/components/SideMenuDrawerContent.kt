@@ -43,6 +43,8 @@ fun SideMenuDrawerContent(
     onNavigateToAdsIncome: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
     onNavigateToLeaderboard: () -> Unit = {},
+    onNavigateToLeadership: () -> Unit = {},
+    onNavigateToDailyTargetBonus: () -> Unit = {},
     onNavigateToAbout: () -> Unit,
     onNavigateToPassiveIncome: () -> Unit,
     onNavigateToSupport: () -> Unit,
@@ -371,6 +373,26 @@ fun SideMenuDrawerContent(
                     onClick = {
                         onCloseDrawer()
                         onNavigateToLeaderboard()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "লিডারশিপ (Leadership)",
+                    icon = Icons.Default.MilitaryTech,
+                    iconColor = Color(0xFFFFB300),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToLeadership()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "ডেইলি টার্গেট বোনাস (Daily Target Bonus)",
+                    icon = Icons.Default.EmojiEvents,
+                    iconColor = Color(0xFFF59E0B),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToDailyTargetBonus()
                     }
                 )
 

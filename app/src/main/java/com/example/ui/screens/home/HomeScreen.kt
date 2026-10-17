@@ -57,6 +57,8 @@ fun HomeScreen(
     onNavigateToAdsIncome: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
     onNavigateToLeaderboard: () -> Unit = {},
+    onNavigateToLeadership: () -> Unit = {},
+    onNavigateToDailyTargetBonus: () -> Unit = {},
     onNavigateToTasks: () -> Unit,
     onNavigateToDeposit: () -> Unit,
     onNavigateToWithdraw: () -> Unit,
@@ -155,10 +157,12 @@ fun HomeScreen(
                             ServiceType.MICRO_JOB, ServiceType.JOB_POST -> onNavigateToMicroJobs()
                             ServiceType.REVIEW_JOB -> onNavigateToReviewJob()
                             ServiceType.MATH_GAME -> onNavigateToMathGame()
-                            ServiceType.DAILY_TARGET_BONUS, ServiceType.WEEKLY_BONUS, ServiceType.MONTHLY_SALARY -> onNavigateToDeposit()
+                            ServiceType.DAILY_TARGET_BONUS -> onNavigateToDailyTargetBonus()
+                            ServiceType.WEEKLY_BONUS, ServiceType.MONTHLY_SALARY -> onNavigateToDeposit()
                             ServiceType.ADS_INCOME -> onNavigateToAdsIncome()
                             ServiceType.DOLLAR_INCOME -> onNavigateToDollarIncome()
-                            ServiceType.LEADERBOARD, ServiceType.LEADERSHIP -> onNavigateToLeaderboard()
+                            ServiceType.LEADERBOARD -> onNavigateToLeaderboard()
+                            ServiceType.LEADERSHIP -> onNavigateToLeadership()
                             else -> selectedServiceModal = service
                         }
                     }
@@ -172,7 +176,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 18.dp)
-                        .clickable { onNavigateToLeaderboard() }
+                        .clickable { onNavigateToLeadership() }
                 ) {
                     Box(
                         modifier = Modifier

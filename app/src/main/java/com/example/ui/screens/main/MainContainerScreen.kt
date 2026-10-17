@@ -66,6 +66,8 @@ fun MainContainerScreen(
     onNavigateToAdsIncome: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
     onNavigateToLeaderboard: () -> Unit = {},
+    onNavigateToLeadership: () -> Unit = {},
+    onNavigateToDailyTargetBonus: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val currentUser by repository.currentUser.collectAsState(initial = null)
@@ -136,6 +138,14 @@ fun MainContainerScreen(
                 onNavigateToLeaderboard = {
                     coroutineScope.launch { drawerState.close() }
                     onNavigateToLeaderboard()
+                },
+                onNavigateToLeadership = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToLeadership()
+                },
+                onNavigateToDailyTargetBonus = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToDailyTargetBonus()
                 },
                 onNavigateToAbout = {
                     infoDialogTitle = "আমাদের সম্পর্কে (About Us)"
@@ -249,6 +259,8 @@ fun MainContainerScreen(
                             onNavigateToAdsIncome = onNavigateToAdsIncome,
                             onNavigateToDollarIncome = onNavigateToDollarIncome,
                             onNavigateToLeaderboard = onNavigateToLeaderboard,
+                            onNavigateToLeadership = onNavigateToLeadership,
+                            onNavigateToDailyTargetBonus = onNavigateToDailyTargetBonus,
                             onNavigateToTasks = { selectedTab = MainTab.SHOP },
                             onNavigateToDeposit = onNavigateToDeposit,
                             onNavigateToWithdraw = onNavigateToWithdraw,
