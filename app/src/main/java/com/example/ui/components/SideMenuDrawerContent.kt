@@ -38,6 +38,9 @@ fun SideMenuDrawerContent(
     onNavigateToFreelancingCourse: () -> Unit = {},
     onNavigateToOnlineService: () -> Unit = {},
     onNavigateToMicroJobs: () -> Unit = {},
+    onNavigateToReviewJob: () -> Unit = {},
+    onNavigateToMathGame: () -> Unit = {},
+    onNavigateToAdsIncome: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
     onNavigateToLeaderboard: () -> Unit = {},
     onNavigateToAbout: () -> Unit,
@@ -322,9 +325,39 @@ fun SideMenuDrawerContent(
                 )
 
                 DrawerMenuItem(
-                    title = "এড ইনকাম (Dollar Income)",
+                    title = "রিভিউ জব (Review Job)",
+                    icon = Icons.Default.RateReview,
+                    iconColor = Color(0xFFE60000),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToReviewJob()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "ম্যাথ গেম (Math Game)",
+                    icon = Icons.Default.Calculate,
+                    iconColor = Color(0xFF009E60),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToMathGame()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "এড ইনকাম (Ads Income)",
                     icon = Icons.Default.MonetizationOn,
                     iconColor = Color(0xFFF59E0B),
+                    onClick = {
+                        onCloseDrawer()
+                        onNavigateToAdsIncome()
+                    }
+                )
+
+                DrawerMenuItem(
+                    title = "ডলার ইনকাম (Dollar Income)",
+                    icon = Icons.Default.CurrencyExchange,
+                    iconColor = Color(0xFF10B981),
                     onClick = {
                         onCloseDrawer()
                         onNavigateToDollarIncome()

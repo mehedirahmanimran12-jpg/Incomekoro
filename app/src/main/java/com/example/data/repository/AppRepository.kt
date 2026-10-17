@@ -104,6 +104,17 @@ class AppRepository(
     private val _completedMicroJobIds = MutableStateFlow<Set<String>>(emptySet())
     val completedMicroJobIds: Flow<Set<String>> = _completedMicroJobIds.asStateFlow()
 
+    // Review Jobs state
+    private val _completedReviewJobIds = MutableStateFlow<Set<String>>(emptySet())
+    val completedReviewJobIds: Flow<Set<String>> = _completedReviewJobIds.asStateFlow()
+
+    // Math Game state
+    private val _mathGameTotalIncome = MutableStateFlow<Double>(0.0)
+    val mathGameTotalIncome: Flow<Double> = _mathGameTotalIncome.asStateFlow()
+
+    private val _mathGameAvailableCount = MutableStateFlow<Int>(0)
+    val mathGameAvailableCount: Flow<Int> = _mathGameAvailableCount.asStateFlow()
+
     init {
         // Seed default catalog
         loadInitialData()
@@ -2221,7 +2232,168 @@ class AppRepository(
         return Result.success(submission)
     }
 
-    // --- Dollar Income (Watch Ad & Earn Bot) ---
+    // --- Review Jobs (Review Works) ---
+
+    fun getReviewJobs(): List<ReviewJobItem> = listOf(
+        ReviewJobItem(
+            id = "rev_1",
+            serialNumber = 1,
+            title = "Rootva Reviews",
+            reward = 8.0,
+            rewardDisplay = "Reward: 8.0৳",
+            platform = "Google Maps",
+            instructions = "গুগল ম্যাপে Rootva Reviews প্রোফাইলে যান। ৫ স্টার রেটিং দিন এবং কমপক্ষে এক লাইনের ভালো রিভিউ লিখে আপনার রিভিউ নাম বা জিমেইল নাম প্রুফ হিসেবে নিচে লিখুন।",
+            targetUrl = "https://maps.google.com"
+        ),
+        ReviewJobItem(
+            id = "rev_2",
+            serialNumber = 2,
+            title = "Rootva Reviews",
+            reward = 8.0,
+            rewardDisplay = "Reward: 8.0৳",
+            platform = "Google Maps",
+            instructions = "লোকেশন লিংকে ক্লিক করে ৫ স্টার রিভিউ দিন। আপনার রিভিউ প্রোফাইল নাম নিচে প্রমাণ হিসেবে লিখে সাবমিট করুন।",
+            targetUrl = "https://maps.google.com"
+        ),
+        ReviewJobItem(
+            id = "rev_3",
+            serialNumber = 3,
+            title = "Rootva Reviews",
+            reward = 8.0,
+            rewardDisplay = "Reward: 8.0৳",
+            platform = "Google Maps",
+            instructions = "ম্যাপে গিয়ে ৫ স্টার রেটিং এবং পজিটিভ ফিডব্যাক দিন। আপনার গুগল অ্যাকাউন্টের নাম লিখে প্রুফ জমা দিন।",
+            targetUrl = "https://maps.google.com"
+        ),
+        ReviewJobItem(
+            id = "rev_4",
+            serialNumber = 4,
+            title = "review",
+            reward = 8.0,
+            rewardDisplay = "Reward: 8.0৳",
+            platform = "Play Store",
+            instructions = "অ্যাপ পেজ ওপেন করে ৫ স্টার রেটিং ও সুন্দর রিভিউ দিন। আপনার প্লে স্টোর ইউজারনেম নিচে জমা দিন।",
+            targetUrl = "https://play.google.com"
+        ),
+        ReviewJobItem(
+            id = "rev_5",
+            serialNumber = 5,
+            title = "Tech Hub Reviews",
+            reward = 8.0,
+            rewardDisplay = "Reward: 8.0৳",
+            platform = "Trustpilot",
+            instructions = "ট্রাস্টপাইলটে গিয়ে এক্সিলেন্ট রেটিং (৫ স্টার) দিন এবং পজিটিভ রিভিউ পোস্ট করে আপনার নাম সাবমিট করুন।",
+            targetUrl = "https://trustpilot.com"
+        ),
+        ReviewJobItem(
+            id = "rev_6",
+            serialNumber = 6,
+            title = "E-Commerce Review",
+            reward = 8.0,
+            rewardDisplay = "Reward: 8.0৳",
+            platform = "Facebook",
+            instructions = "ফেসবুক বিজনেস পেজে গিয়ে ৫ স্টার রেকমেন্ডেশন দিন ও রিভিউ কমেন্ট করুন। আপনার ফেসবুক আইডির নাম লিখুন।",
+            targetUrl = "https://facebook.com"
+        ),
+        ReviewJobItem(
+            id = "rev_7",
+            serialNumber = 7,
+            title = "Restaurant Review",
+            reward = 8.0,
+            rewardDisplay = "Reward: 8.0৳",
+            platform = "Google Maps",
+            instructions = "রেস্টুরেন্টের গুগল ম্যাপ লোকেশনে গিয়ে ৫ স্টার ও ভালো রিভিউ দিয়ে আপনার গুগল প্রোফাইল নাম লিখুন।",
+            targetUrl = "https://maps.google.com"
+        ),
+        ReviewJobItem(
+            id = "rev_8",
+            serialNumber = 8,
+            title = "Service Hub Reviews",
+            reward = 8.0,
+            rewardDisplay = "Reward: 8.0৳",
+            platform = "Google Maps",
+            instructions = "সার্ভিস সেন্টারের গুগল ম্যাপ পেজে ৫ স্টার রেটিং প্রদান করুন এবং প্রুফ জমা দিন।",
+            targetUrl = "https://maps.google.com"
+        )
+    )
+
+    suspend fun submitReviewJobProof(job: ReviewJobItem, proofText: String): Result<ReviewJobSubmission> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        if (proofText.trim().length < 2) {
+            return Result.failure(IllegalArgumentException("সঠিক প্রমাণ বা রিভিউ অ্যাকাউন্টের নাম প্রদান করুন"))
+        }
+
+        val submissionId = "REV-" + (100000..999999).random()
+        val trxId = "REVTRX-" + (1000000..9999999).random()
+
+        val submission = ReviewJobSubmission(
+            id = submissionId,
+            jobId = job.id,
+            jobTitle = job.title,
+            reward = job.reward,
+            userProofText = proofText.trim(),
+            timestamp = System.currentTimeMillis(),
+            status = "অনুমোদিত"
+        )
+
+        // Credit reward to user balance
+        val newBalance = user.balance + job.reward
+        _currentUser.value = user.copy(balance = newBalance)
+        _completedReviewJobIds.value = _completedReviewJobIds.value + job.id
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.TASK_INCOME,
+            amount = job.reward,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "রিভিউ জব সম্পন্ন: ${job.title} (#${job.serialNumber})",
+            paymentMethod = "রিভিউ জব রিওয়ার্ড",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "রিভিউ জব রিওয়ার্ড ক্রেডিট! 🌟",
+            message = "'${job.title}' রিভিউ কাজ সফলভাবে সম্পন্ন করার জন্য আপনার ওয়ালেটে ৳${String.format(java.util.Locale.US, "%.2f", job.reward)} যোগ করা হয়েছে।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(submission)
+    }
+
+    // --- Ads & Dollar Income (Watch Ad & Earn Bot) ---
+
+    suspend fun completeAdsIncomeTask(reward: Double = 5.0): Result<Double> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        val trxId = "ADS-" + (1000000..9999999).random()
+        val newBalance = user.balance + reward
+        _currentUser.value = user.copy(balance = newBalance)
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.TASK_INCOME,
+            amount = reward,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "Ads Income: Watch Ad & Earn (15s)",
+            paymentMethod = "Ads Bot Reward",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "এড ইনকাম রিওয়ার্ড ক্রেডিট! 🤑",
+            message = "Watch Ad & Earn টাস্ক সম্পন্ন করার জন্য আপনার ওয়ালেটে ৳${String.format(java.util.Locale.US, "%.2f", reward)} যোগ করা হয়েছে।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(reward)
+    }
 
     suspend fun completeDollarIncomeAdTask(reward: Double = 5.0): Result<Double> {
         val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
@@ -2246,6 +2418,51 @@ class AppRepository(
         addNotification(
             title = "Dollar Income রিওয়ার্ড ক্রেডিট! 🤑",
             message = "Watch Ad & Earn টাস্ক সম্পন্ন করার জন্য আপনার ওয়ালেটে ৳${String.format(java.util.Locale.US, "%.2f", reward)} যোগ করা হয়েছে।",
+            category = NotificationCategory.SYSTEM
+        )
+
+        return Result.success(reward)
+    }
+
+    // --- Math Game ---
+
+    fun resetDailyMathGame(count: Int = 10) {
+        _mathGameAvailableCount.value = count
+    }
+
+    suspend fun submitMathGameAnswer(problem: MathProblem, userAnswer: Int, reward: Double = 2.0): Result<Double> {
+        val user = _currentUser.value ?: return Result.failure(IllegalStateException("দয়া করে প্রথমে লগইন করুন"))
+
+        if (_mathGameAvailableCount.value <= 0) {
+            return Result.failure(IllegalStateException("আজকের জন্য কোনো গেম বাকি নেই (No Games Left)"))
+        }
+
+        if (userAnswer != problem.correctAnswer) {
+            return Result.failure(IllegalArgumentException("ভুল উত্তর! সঠিক উত্তর ছিল ${problem.correctAnswer}"))
+        }
+
+        val trxId = "MATH-" + (1000000..9999999).random()
+        val newBalance = user.balance + reward
+        _currentUser.value = user.copy(balance = newBalance)
+        _mathGameTotalIncome.value = _mathGameTotalIncome.value + reward
+        _mathGameAvailableCount.value = (_mathGameAvailableCount.value - 1).coerceAtLeast(0)
+
+        val trxRecord = Transaction(
+            id = trxId,
+            userId = user.uid,
+            type = TransactionType.TASK_INCOME,
+            amount = reward,
+            status = TransactionStatus.COMPLETED,
+            date = System.currentTimeMillis(),
+            description = "Math Game: ${problem.displayQuestion} সঠিক উত্তর",
+            paymentMethod = "ম্যাথ গেম রিওয়ার্ড",
+            transactionRef = trxId
+        )
+        _transactions.value = listOf(trxRecord) + _transactions.value
+
+        addNotification(
+            title = "ম্যাথ গেম রিওয়ার্ড ক্রেডিট! 🎯",
+            message = "সঠিক উত্তর দেওয়ার জন্য আপনার ওয়ালেটে ৳${String.format(java.util.Locale.US, "%.2f", reward)} যোগ করা হয়েছে।",
             category = NotificationCategory.SYSTEM
         )
 

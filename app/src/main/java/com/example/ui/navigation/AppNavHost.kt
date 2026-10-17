@@ -21,6 +21,9 @@ import com.example.ui.screens.shop.ResellingShopScreen
 import com.example.ui.screens.course.FreelancingCourseScreen
 import com.example.ui.screens.service.OnlineServiceScreen
 import com.example.ui.screens.jobs.MicroJobsScreen
+import com.example.ui.screens.jobs.ReviewJobScreen
+import com.example.ui.screens.game.MathGameScreen
+import com.example.ui.screens.income.AdsIncomeScreen
 import com.example.ui.screens.income.DollarIncomeScreen
 import com.example.ui.screens.leaderboard.LeaderboardScreen
 import com.example.ui.screens.recharge.MobileRechargeScreen
@@ -133,6 +136,9 @@ fun AppNavHost(
                 onNavigateToFreelancingCourse = { navController.navigate(Screen.FreelancingCourse.route) },
                 onNavigateToOnlineService = { navController.navigate(Screen.OnlineService.route) },
                 onNavigateToMicroJobs = { navController.navigate(Screen.MicroJobs.route) },
+                onNavigateToReviewJob = { navController.navigate(Screen.ReviewJob.route) },
+                onNavigateToMathGame = { navController.navigate(Screen.MathGame.route) },
+                onNavigateToAdsIncome = { navController.navigate(Screen.AdsIncome.route) },
                 onNavigateToDollarIncome = { navController.navigate(Screen.DollarIncome.route) },
                 onNavigateToLeaderboard = { navController.navigate(Screen.Leaderboard.route) },
                 onLogout = {
@@ -239,6 +245,20 @@ fun AppNavHost(
             )
         }
 
+        composable(Screen.ReviewJob.route) {
+            ReviewJobScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.MathGame.route) {
+            MathGameScreen(
+                repository = repository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
         composable(Screen.DollarIncome.route) {
             DollarIncomeScreen(
                 repository = repository,
@@ -247,7 +267,7 @@ fun AppNavHost(
         }
 
         composable(Screen.AdsIncome.route) {
-            DollarIncomeScreen(
+            AdsIncomeScreen(
                 repository = repository,
                 onNavigateBack = { navController.popBackStack() }
             )

@@ -61,6 +61,9 @@ fun MainContainerScreen(
     onNavigateToFreelancingCourse: () -> Unit = {},
     onNavigateToOnlineService: () -> Unit = {},
     onNavigateToMicroJobs: () -> Unit = {},
+    onNavigateToReviewJob: () -> Unit = {},
+    onNavigateToMathGame: () -> Unit = {},
+    onNavigateToAdsIncome: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
     onNavigateToLeaderboard: () -> Unit = {},
     onLogout: () -> Unit
@@ -113,6 +116,18 @@ fun MainContainerScreen(
                 onNavigateToMicroJobs = {
                     coroutineScope.launch { drawerState.close() }
                     onNavigateToMicroJobs()
+                },
+                onNavigateToReviewJob = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToReviewJob()
+                },
+                onNavigateToMathGame = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToMathGame()
+                },
+                onNavigateToAdsIncome = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToAdsIncome()
                 },
                 onNavigateToDollarIncome = {
                     coroutineScope.launch { drawerState.close() }
@@ -229,6 +244,9 @@ fun MainContainerScreen(
                             onNavigateToFreelancingCourse = onNavigateToFreelancingCourse,
                             onNavigateToOnlineService = onNavigateToOnlineService,
                             onNavigateToMicroJobs = onNavigateToMicroJobs,
+                            onNavigateToReviewJob = onNavigateToReviewJob,
+                            onNavigateToMathGame = onNavigateToMathGame,
+                            onNavigateToAdsIncome = onNavigateToAdsIncome,
                             onNavigateToDollarIncome = onNavigateToDollarIncome,
                             onNavigateToLeaderboard = onNavigateToLeaderboard,
                             onNavigateToTasks = { selectedTab = MainTab.SHOP },

@@ -24,6 +24,8 @@ sealed class Screen(val route: String) {
     object Course : Screen("course")
     object OnlineService : Screen("online_service")
     object MicroJobs : Screen("micro_jobs")
+    object ReviewJob : Screen("review_job")
+    object MathGame : Screen("math_game")
     object DollarIncome : Screen("dollar_income")
     object AdsIncome : Screen("ads_income")
     object Leaderboard : Screen("leaderboard")

@@ -488,3 +488,35 @@ data class MicroJobSubmission(
     val status: String = "পেন্ডিং রিভিউ"
 )
 
+data class ReviewJobItem(
+    val id: String,
+    val serialNumber: Int,
+    val title: String,
+    val reward: Double = 8.0,
+    val rewardDisplay: String = "Reward: 8.0৳",
+    val platform: String = "Google Maps & Web",
+    val instructions: String = "",
+    val targetUrl: String = "https://maps.google.com",
+    val requiresScreenshot: Boolean = true
+)
+
+data class ReviewJobSubmission(
+    val id: String = "",
+    val jobId: String = "",
+    val jobTitle: String = "",
+    val reward: Double = 8.0,
+    val userProofText: String = "",
+    val timestamp: Long = System.currentTimeMillis(),
+    val status: String = "অনুমোদিত"
+)
+
+data class MathProblem(
+    val num1: Int = 12,
+    val num2: Int = 15,
+    val operator: String = "+",
+    val correctAnswer: Int = 27
+) {
+    val displayQuestion: String
+        get() = "$num1 $operator $num2 = ?"
+}
+

@@ -52,6 +52,9 @@ fun HomeScreen(
     onNavigateToFreelancingCourse: () -> Unit = {},
     onNavigateToOnlineService: () -> Unit = {},
     onNavigateToMicroJobs: () -> Unit = {},
+    onNavigateToReviewJob: () -> Unit = {},
+    onNavigateToMathGame: () -> Unit = {},
+    onNavigateToAdsIncome: () -> Unit = {},
     onNavigateToDollarIncome: () -> Unit = {},
     onNavigateToLeaderboard: () -> Unit = {},
     onNavigateToTasks: () -> Unit,
@@ -149,9 +152,12 @@ fun HomeScreen(
                             ServiceType.RESELLING_SHOP -> onNavigateToResellingShop()
                             ServiceType.FREELANCING_COURSE, ServiceType.COURSE -> onNavigateToFreelancingCourse()
                             ServiceType.ONLINE_SERVICE -> onNavigateToOnlineService()
-                            ServiceType.MICRO_JOB, ServiceType.JOB_POST, ServiceType.REVIEW_JOB -> onNavigateToMicroJobs()
+                            ServiceType.MICRO_JOB, ServiceType.JOB_POST -> onNavigateToMicroJobs()
+                            ServiceType.REVIEW_JOB -> onNavigateToReviewJob()
+                            ServiceType.MATH_GAME -> onNavigateToMathGame()
                             ServiceType.DAILY_TARGET_BONUS, ServiceType.WEEKLY_BONUS, ServiceType.MONTHLY_SALARY -> onNavigateToDeposit()
-                            ServiceType.ADS_INCOME, ServiceType.DOLLAR_INCOME -> onNavigateToDollarIncome()
+                            ServiceType.ADS_INCOME -> onNavigateToAdsIncome()
+                            ServiceType.DOLLAR_INCOME -> onNavigateToDollarIncome()
                             ServiceType.LEADERBOARD, ServiceType.LEADERSHIP -> onNavigateToLeaderboard()
                             else -> selectedServiceModal = service
                         }

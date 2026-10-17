@@ -1,5 +1,8 @@
 package com.example.ui.screens.income
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -17,14 +20,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -36,44 +37,33 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.repository.AppRepository
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DollarIncomeScreen(
     repository: AppRepository,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToShop: () -> Unit = {},
+    onNavigateToReferral: () -> Unit = {}
 ) {
     BackHandler(onBack = onNavigateBack)
 
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val currentUser by repository.currentUser.collectAsState(initial = null)
+    val resellingOrders by repository.resellingOrders.collectAsState(initial = emptyList())
+    val teamMembers by repository.teamMembers.collectAsState(initial = emptyList())
 
-    // Dialog & Simulation States
+    // Dynamic stats based on user data
+    val currentLeadersCount = teamMembers.size.coerceAtLeast(currentUser?.teamCount ?: 0)
+    val currentOrdersCount = resellingOrders.size
+
+    // Dialog states
     var showTutorialDialog by remember { mutableStateOf(false) }
     var showRulesDialog by remember { mutableStateOf(false) }
-    var showAdTaskSheet by remember { mutableStateOf(false) }
-    var showSuccessRewardDialog by remember { mutableStateOf(false) }
-    var lastRewardAmount by remember { mutableStateOf(5.0) }
+    var showDetailsDialog by remember { mutableStateOf(false) }
+    var showInfoNoticeDialog by remember { mutableStateOf(false) }
 
-    // Ad Watch Simulation State
-    var isWatchingAd by remember { mutableStateOf(false) }
-    var adSecondsLeft by remember { mutableStateOf(15) }
-    var adStep by remember { mutableStateOf(1) } // 1: Initial, 2: Watch Ad clicked, 3: Continue clicked (Timer running), 4: Finished
-
-    // Timer effect for 15-second requirement
-    LaunchedEffect(isWatchingAd) {
-        if (isWatchingAd) {
-            adSecondsLeft = 15
-            while (adSecondsLeft > 0) {
-                delay(1000L)
-                adSecondsLeft -= 1
-            }
-            adStep = 4 // Timer finished
-        }
-    }
+    val isEligible = currentLeadersCount >= 10 && currentOrdersCount >= 1
 
     Scaffold(
         containerColor = Color.White,
@@ -86,7 +76,7 @@ fun DollarIncomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 6.dp, vertical = 10.dp),
+                        .padding(horizontal = 6.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
@@ -109,6 +99,21 @@ fun DollarIncomeScreen(
                         color = Color.White,
                         modifier = Modifier.padding(start = 4.dp)
                     )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // Top-Right Speech Bubble with Info "i" icon matching Screenshot
+                    IconButton(
+                        onClick = { showInfoNoticeDialog = true },
+                        modifier = Modifier.testTag("dollar_income_info_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChatBubble,
+                            contentDescription = "Dollar Income Info",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
@@ -118,22 +123,19 @@ fun DollarIncomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .background(Color.White),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .background(Color.White)
         ) {
             // 1. Two Top Action Buttons: টিউটোরিয়াল (Red) & নিয়ম (Blue)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // টিউটোরিয়াল Button (Bright Red)
                 Button(
                     onClick = { showTutorialDialog = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE60000)
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE60000)),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(vertical = 12.dp),
                     modifier = Modifier
@@ -164,9 +166,7 @@ fun DollarIncomeScreen(
                 // নিয়ম Button (Royal Blue)
                 Button(
                     onClick = { showRulesDialog = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0047BA)
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0047BA)),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(vertical = 12.dp),
                     modifier = Modifier
@@ -195,208 +195,369 @@ fun DollarIncomeScreen(
                 }
             }
 
-            // 2. Hero Image: Businessman looking at ascending 3D stair chart with growth arrow
+            // 2. Hero Image Banner: DOLLAR INCOME with cash and coins on starry background
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(230.dp)
-                    .background(Color(0xFF0F172A))
+                    .height(155.dp)
+                    .background(Color(0xFF091638))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.img_dollar_income_hero),
-                    contentDescription = "Dollar Income Growth",
+                    painter = painterResource(id = R.drawable.img_dollar_income_banner),
+                    contentDescription = "Dollar Income Banner",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 3. Blue Capsule Banner with Orange Border: "bot এ আয় করার নিয়ম"
+            // 3. Maroon/Burgundy Card Matching Screenshot Exactly
             Surface(
-                color = Color(0xFF0029D8),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(2.5.dp, Color(0xFFFF5500)),
+                color = Color(0xFF83003A),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "bot এ আয় করার নিয়ম",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // 4. Black Strip with Orange Top & Bottom Borders
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Black)
-                    .border(
-                        BorderStroke(1.5.dp, Color(0xFFFF5500))
-                    )
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "নিচের JOIN বলে  বাটন ক্লিক করে কাজ শুরু করুন",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // 5. Yellow "JOIN NOW >" Stadium Button matching Screenshot
-            Surface(
-                color = Color(0xFFFFE600),
-                shape = RoundedCornerShape(32.dp),
-                border = BorderStroke(3.5.dp, Color(0xFFD4C000)),
-                shadowElevation = 4.dp,
-                modifier = Modifier
-                    .widthIn(min = 250.dp)
-                    .height(56.dp)
-                    .clickable {
-                        // Launch the Interactive Ad/Bot Earning Experience
-                        adStep = 1
-                        isWatchingAd = false
-                        adSecondsLeft = 15
-                        showAdTaskSheet = true
-                    }
-                    .testTag("dollar_income_join_now_button")
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "JOIN NOW",
-                        color = Color.Black,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.5.sp
-                    )
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    // White circle with chevron arrow
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = "Join Now",
-                            tint = Color.Black,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // 6. Solid Royal Blue Instructional Container matching Screenshot
-            Surface(
-                color = Color(0xFF0022D2),
-                modifier = Modifier
-                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 22.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
+                    // Header: ⭐ ডলার ইনকাম সুযোগ ⭐
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⭐ ডলার ইনকাম সুযোগ ⭐",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Condition Title: 💥 ওয়েবসাইট পাওয়ার শর্ত 💥
                     Text(
-                        text = "Watch Ad & Earn 🔔 এ চাপ দিন।",
+                        text = "💥 ওয়েবসাইট পাওয়ার শর্ত 💥",
                         color = Color.White,
                         fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
+                        fontWeight = FontWeight.Bold
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
+                    // Condition 1: ✅ ১০ জন সরাসরি লিডার
                     Text(
-                        text = "এরপর নিচে থাকা Continue 🔘 তে চাপ দিন।",
-                        color = Color.White,
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "নতুন পেইজ আসলে ⏳ অন্তত ১৫ সেকেন্ড সেখানে থাকুন।",
-                        color = Color.White,
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "সময় শেষ হলে উপরে থাকা ❌ এ চাপ দিয়ে বের হয়ে আসুন।",
-                        color = Color.White,
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "এই একই নিয়মে কাজ করতে থাকুন 🤑",
-                        color = Color.White,
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "✨ নিয়মিত কাজ করলে আয় বাড়তেই থাকবে 💵",
+                        text = "✅ ১০ জন সরাসরি লিডার",
                         color = Color.White,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Condition 2: ✅ ১টি রিসিলিং সম্পন্ন করতে হবে
+                    Text(
+                        text = "✅ ১টি রিসিলিং সম্পন্ন করতে হবে",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Outcome Title: এরপরই আপনি পাবেন—
+                    Text(
+                        text = "এরপরই আপনি পাবেন—",
+                        color = Color.White,
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
+                    // Outcome 1: 🌎 অফিসিয়াল ওয়েবসাইট
                     Text(
-                        text = "🔥 আজই শুরু করুন — যত দেখবেন ততই ইনকাম হবে",
+                        text = "🌎 অফিসিয়াল ওয়েবসাইট",
                         color = Color.White,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Outcome 2: 💲 ডলার ইনকাম শুরু করার সুযোগ
+                    Text(
+                        text = "💲 ডলার ইনকাম শুরু করার সুযোগ",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 4. 2x2 Grid of Progress Stat Cards with Yellow Borders
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Row 1: আপনার অর্জন (0) | আপনার লাগবে (10)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Card 1: আপনার অর্জন
+                    StatCard(
+                        number = "$currentLeadersCount",
+                        numberColor = Color(0xFFDC2626), // Red
+                        label = "আপনার অর্জন",
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Card 2: আপনার লাগবে (10)
+                    StatCard(
+                        number = "10",
+                        numberColor = Color(0xFF7C3AED), // Purple
+                        label = "আপনার লাগবে",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Row 2: আপনার অর্ডার (0) | আপনার লাগবে (1)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Card 3: আপনার অর্ডার
+                    StatCard(
+                        number = "$currentOrdersCount",
+                        numberColor = Color(0xFFDC2626), // Red
+                        label = "আপনার অর্ডার",
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Card 4: আপনার লাগবে (1)
+                    StatCard(
+                        number = "1",
+                        numberColor = Color(0xFF7C3AED), // Purple
+                        label = "আপনার লাগবে",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 5. Divider
+            HorizontalDivider(
+                color = Color(0xFFE2E8F0),
+                thickness = 2.dp,
+                modifier = Modifier.padding(horizontal = 14.dp)
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 6. Primary Action Button: বিস্তারিত দেখুন
+            Button(
+                onClick = { showDetailsDialog = true },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0055D2)),
+                shape = RoundedCornerShape(25.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .padding(horizontal = 14.dp)
+                    .testTag("dollar_income_details_button")
+            ) {
+                Text(
+                    text = "বিস্তারিত দেখুন",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    // -------------------------------------------------------------
+    // STAT CARD COMPONENT
+    // -------------------------------------------------------------
+    // (Used inside the 2x2 grid)
+
+    // -------------------------------------------------------------
+    // DETAILS DIALOG (বিস্তারিত দেখুন)
+    // -------------------------------------------------------------
+    if (showDetailsDialog) {
+        AlertDialog(
+            onDismissRequest = { showDetailsDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Stars,
+                        contentDescription = null,
+                        tint = Color(0xFFF59E0B),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "ডলার ইনকাম যোগ্যতা বিবরণ",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = Color(0xFF0F172A)
+                    )
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "অফিসিয়াল ডলার ইনকাম ওয়েবসাইট আনলক করার শর্তাবলী:",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color(0xFF0055D2)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Leaders requirement status
+                    Surface(
+                        color = if (currentLeadersCount >= 10) Color(0xFFF0FDF4) else Color(0xFFFEF2F2),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, if (currentLeadersCount >= 10) Color(0xFFBBF7D0) else Color(0xFFFECACA)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "সরাসরি লিডার সংখ্যা:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E293B)
+                                )
+                                Text(
+                                    text = "বর্তমান: $currentLeadersCount জন / প্রয়োজন: ১০ জন",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                            Icon(
+                                imageVector = if (currentLeadersCount >= 10) Icons.Default.CheckCircle else Icons.Default.Pending,
+                                contentDescription = null,
+                                tint = if (currentLeadersCount >= 10) Color(0xFF166534) else Color(0xFFDC2626)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Reselling requirement status
+                    Surface(
+                        color = if (currentOrdersCount >= 1) Color(0xFFF0FDF4) else Color(0xFFFEF2F2),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, if (currentOrdersCount >= 1) Color(0xFFBBF7D0) else Color(0xFFFECACA)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "রিসেলিং অর্ডার:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E293B)
+                                )
+                                Text(
+                                    text = "বর্তমান: $currentOrdersCount টি / প্রয়োজন: ১টি",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                            Icon(
+                                imageVector = if (currentOrdersCount >= 1) Icons.Default.CheckCircle else Icons.Default.Pending,
+                                contentDescription = null,
+                                tint = if (currentOrdersCount >= 1) Color(0xFF166534) else Color(0xFFDC2626)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    if (isEligible) {
+                        Button(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://incomekoro.com/dollar-income"))
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "ওয়েবসাইট ওপেন করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(42.dp)
+                        ) {
+                            Icon(Icons.Default.Language, contentDescription = null, tint = Color.White)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("অফিসিয়াল ওয়েবসাইটে যান 🌎", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        // Quick Action Buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    showDetailsDialog = false
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val code = currentUser?.referralCode ?: "250829"
+                                    val clip = ClipData.newPlainText("Referral", "https://incomekoro.com/ref/$code")
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(context, "রেফারেল লিংক কপি হয়েছে!", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(40.dp)
+                            ) {
+                                Text("টিম বাড়ান", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    showDetailsDialog = false
+                                    onNavigateToShop()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0055D2)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(40.dp)
+                            ) {
+                                Text("রিসেলিং করুন", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDetailsDialog = false }) {
+                    Text("বুঝেছি", color = Color(0xFF0055D2))
+                }
+            }
+        )
     }
 
     // -------------------------------------------------------------
@@ -415,7 +576,7 @@ fun DollarIncomeScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Dollar Income টিউটোরিয়াল",
+                        text = "ডলার ইনকাম টিউটোরিয়াল",
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp,
                         color = Color(0xFF0F172A)
@@ -429,19 +590,17 @@ fun DollarIncomeScreen(
                         .verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        text = "বট ও এড দেখে আয়ের নিয়মাবলী:",
+                        text = "কিভাবে অফিসিয়াল ডলার ইনকাম শুরু করবেন:",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = Color(0xFF0055D2)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "১. নিচের 'JOIN NOW' বাটনে চাপ দিন।\n\n" +
-                                "২. সেখানে 'Watch Ad & Earn 🔔' বাটনে চাপ দিন।\n\n" +
-                                "৩. এরপর নিচে প্রদর্শিত 'Continue 🔘' বাটনে চাপ দিন।\n\n" +
-                                "৪. নতুন পেইজ ওপেন হলে অবশ্যই অন্তত ১৫ সেকেন্ড অপেক্ষা করুন।\n\n" +
-                                "৫. ১৫ সেকেন্ড শেষ হলে উপরের ডান কোণায় ❌ এ চাপ দিয়ে ফিরে আসুন।\n\n" +
-                                "৬. সাথে সাথেই আপনার ওয়ালেটে ডলার/টাকা রিওয়ার্ড যুক্ত হয়ে যাবে।",
+                        text = "১. প্রথমে আপনার রেফারেল লিংকের মাধ্যমে অন্তত ১০ জন সরাসরি একটিভ লিডার তৈরি করুন।\n\n" +
+                                "২. রিসেলিং শপ থেকে যেকোনো ১টি প্রডাক্ট সফলভাবে অর্ডার বা ডেলিভারি সম্পন্ন করুন।\n\n" +
+                                "৩. উভয় শর্ত পূরণ হওয়ার সাথে সাথে আপনাকে কোম্পানির অফিসিয়াল ডলার ইনকাম ওয়েবসাইট ও আলাদা ড্যাশবোর্ড এক্সেস প্রদান করা হবে।\n\n" +
+                                "৪. সেখানে প্রতিদিন মাইক্রো সার্ভিস ও ইন্টারন্যাশনাল ক্যাম্পেইন থেকে আনলিমিটেড ডলার ইনকাম করতে পারবেন।",
                         fontSize = 13.sp,
                         color = Color(0xFF334155),
                         lineHeight = 19.sp
@@ -454,7 +613,7 @@ fun DollarIncomeScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE60000)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("বুঝেছি")
+                    Text("ঠিক আছে")
                 }
             }
         )
@@ -476,7 +635,7 @@ fun DollarIncomeScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "কাজের শর্ত ও নিয়মাবলী",
+                        text = "শর্তাবলী ও নীতিমালা",
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp,
                         color = Color(0xFF0F172A)
@@ -490,17 +649,17 @@ fun DollarIncomeScreen(
                         .verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        text = "সতর্কতা ও নীতিমালা:",
+                        text = "নীতিমালা ও নির্দেশিকা:",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = Color(0xFF0047BA)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "১. ১৫ সেকেন্ডের আগে পেইজ থেকে বের হয়ে আসলে কোনো রিওয়ার্ড জমা হবে না।\n\n" +
-                                "২. অটোমেটিক ক্লিকার বা অনৈতিক কোনো পদ্ধতি ব্যবহার করা সম্পূর্ণ নিষিদ্ধ।\n\n" +
-                                "৩. প্রতিদিন আনলিমিটেড এড দেখে যত খুশি তত ইনকাম করতে পারবেন।\n\n" +
-                                "৪. অর্জিত ব্যালেন্স বিকাশ, নগদ অথবা রকেটের মাধ্যমে যেকোনো সময় উইথড্র করতে পারবেন।",
+                        text = "১. লিডারদের অবশ্যই জেনুইন এবং একাউন্ট সক্রিয় থাকতে হবে। ফেক একাউন্ট খুললে রিওয়ার্ড বাতিল করা হবে।\n\n" +
+                                "২. রিসেলিং অর্ডার অবশ্যই সফলভাবে সম্পন্ন হতে হবে (ক্যানসেল বা রিটার্ন গ্রহণযোগ্য নয়)।\n\n" +
+                                "৩. শর্ত পূরণ করার পর সর্বোচ্চ ২৪ ঘণ্টার মধ্যে ডলার ইনকাম পোর্টাল আনলক হবে।\n\n" +
+                                "৪. অর্জিত ডলার বিকাশ, নগদ বা ক্রিপ্টোকারেন্সির মাধ্যমে সরাসরি উইথড্র করা যাবে।",
                         fontSize = 13.sp,
                         color = Color(0xFF334155),
                         lineHeight = 19.sp
@@ -520,489 +679,89 @@ fun DollarIncomeScreen(
     }
 
     // -------------------------------------------------------------
-    // INTERACTIVE AD & BOT TASK MODAL (WATCH AD & EARN)
+    // INFO SPEECH BUBBLE NOTICE DIALOG
     // -------------------------------------------------------------
-    if (showAdTaskSheet) {
-        ModalBottomSheet(
-            onDismissRequest = {
-                if (!isWatchingAd) showAdTaskSheet = false
-            },
-            containerColor = Color.White
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp)
-                    .padding(bottom = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            color = Color(0xFF0055D2),
-                            shape = CircleShape,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "$",
-                                    color = Color.White,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Dollar Income Bot & Ad Task",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color(0xFF0F172A)
-                        )
-                    }
-
-                    if (!isWatchingAd) {
-                        IconButton(onClick = { showAdTaskSheet = false }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Interactive Task Steps matching the exact screenshot instructions
-                when (adStep) {
-                    1 -> {
-                        // Step 1: "Watch Ad & Earn 🔔 এ চাপ দিন।"
-                        Surface(
-                            color = Color(0xFFEFF6FF),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "ধাপ ১: বিজ্ঞাপন শুরু করুন",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E40AF)
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "নিচের 'Watch Ad & Earn 🔔' বাটনে চাপ দিন:",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF334155),
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Button(
-                                    onClick = { adStep = 2 },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF0055D2)
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                        .testTag("step_watch_ad_button")
-                                ) {
-                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color.White)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Watch Ad & Earn 🔔",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Option to open real Telegram bot as well
-                        OutlinedButton(
-                            onClick = {
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/incomekoro_bot"))
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "টেলিগ্রাম লিংক ওপেন করা হচ্ছে...", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth().height(44.dp)
-                        ) {
-                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Telegram Bot ওপেন করুন 🤖", color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    2 -> {
-                        // Step 2: "এরপর নিচে থাকা Continue 🔘 তে চাপ দিন।"
-                        Surface(
-                            color = Color(0xFFF0FDF4),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color(0xFFBBF7D0)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "ধাপ ২: বিজ্ঞাপন লোড নিশ্চিত করুন",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF166534)
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "বিজ্ঞাপন লোড হয়েছে! নিচে থাকা 'Continue 🔘' বাটনে চাপ দিন:",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF334155),
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Button(
-                                    onClick = {
-                                        adStep = 3
-                                        isWatchingAd = true
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF10B981)
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                        .testTag("step_continue_button")
-                                ) {
-                                    Icon(Icons.Default.RadioButtonChecked, contentDescription = null, tint = Color.White)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Continue 🔘",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    3 -> {
-                        // Step 3: "নতুন পেইজ আসলে ⏳ অন্তত ১৫ সেকেন্ড সেখানে থাকুন।"
-                        Surface(
-                            color = Color(0xFF0F172A),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        color = Color(0xFFEF4444),
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "ADVERTISEMENT",
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-
-                                    // Disabled ❌ button until 15s finishes
-                                    Surface(
-                                        color = Color.White.copy(alpha = 0.2f),
-                                        shape = CircleShape,
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = "${adSecondsLeft}s",
-                                                color = Color.White,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(18.dp))
-
-                                // Visual Ad Content Simulation
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(120.dp)
-                                        .background(
-                                            Brush.linearGradient(
-                                                listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))
-                                            ),
-                                            RoundedCornerShape(8.dp)
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(
-                                            imageVector = Icons.Default.MonetizationOn,
-                                            contentDescription = null,
-                                            tint = Color(0xFFFFE600),
-                                            modifier = Modifier.size(44.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "স্মার্টফোন দিয়ে ঘরে বসে আয় করুন",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Text(
-                                    text = "⏳ অন্তত ১৫ সেকেন্ড এখানে থাকুন...",
-                                    color = Color(0xFFFBBF24),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                LinearProgressIndicator(
-                                    progress = { (15 - adSecondsLeft) / 15f },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(6.dp)
-                                        .clip(RoundedCornerShape(3.dp)),
-                                    color = Color(0xFF10B981),
-                                    trackColor = Color.White.copy(alpha = 0.2f),
-                                )
-                            }
-                        }
-                    }
-
-                    4 -> {
-                        // Step 4: "সময় শেষ হলে উপরে থাকা ❌ এ চাপ দিয়ে বের হয়ে আসুন।"
-                        Surface(
-                            color = Color(0xFF0F172A),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        color = Color(0xFF10B981),
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "সময় সম্পন্ন ✅",
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-
-                                    // Active ❌ Button with glow effect
-                                    IconButton(
-                                        onClick = {
-                                            isWatchingAd = false
-                                            showAdTaskSheet = false
-                                            coroutineScope.launch {
-                                                val result = repository.completeDollarIncomeAdTask(5.0)
-                                                if (result.isSuccess) {
-                                                    lastRewardAmount = result.getOrNull() ?: 5.0
-                                                    showSuccessRewardDialog = true
-                                                } else {
-                                                    Toast.makeText(context, "রিওয়ার্ড যোগ করতে ত্রুটি হয়েছে", Toast.LENGTH_SHORT).show()
-                                                }
-                                            }
-                                        },
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .background(Color(0xFFEF4444), CircleShape)
-                                            .testTag("ad_close_reward_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Close Ad & Claim Reward",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(18.dp))
-
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = Color(0xFF10B981),
-                                    modifier = Modifier.size(52.dp)
-                                )
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Text(
-                                    text = "সময় শেষ! ❌ এ চাপ দিয়ে বের হয়ে আসুন",
-                                    color = Color.White,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                Text(
-                                    text = "রিওয়ার্ড সংগ্রহ করতে উপরে বা নিচে থাকা ❌ বাটনে চাপ দিন:",
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 12.sp,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Button(
-                                    onClick = {
-                                        isWatchingAd = false
-                                        showAdTaskSheet = false
-                                        coroutineScope.launch {
-                                            val result = repository.completeDollarIncomeAdTask(5.0)
-                                            if (result.isSuccess) {
-                                                lastRewardAmount = result.getOrNull() ?: 5.0
-                                                showSuccessRewardDialog = true
-                                            } else {
-                                                Toast.makeText(context, "রিওয়ার্ড যোগ করতে ত্রুটি হয়েছে", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF10B981)
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.fillMaxWidth().height(46.dp)
-                                ) {
-                                    Icon(Icons.Default.Close, contentDescription = null, tint = Color.White)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "বের হন ও ৳৫.০০ রিওয়ার্ড নিন 🤑",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // -------------------------------------------------------------
-    // SUCCESS REWARD CELEBRATION DIALOG
-    // -------------------------------------------------------------
-    if (showSuccessRewardDialog) {
+    if (showInfoNoticeDialog) {
         AlertDialog(
-            onDismissRequest = { showSuccessRewardDialog = false },
+            onDismissRequest = { showInfoNoticeDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.EmojiEvents,
+                        imageVector = Icons.Default.Info,
                         contentDescription = null,
-                        tint = Color(0xFFF59E0B),
-                        modifier = Modifier.size(28.dp)
+                        tint = Color(0xFF0055D2),
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "অভিনন্দন! 🎉",
+                        text = "হেল্প ও নোটিশ",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
+                        fontSize = 17.sp,
                         color = Color(0xFF0F172A)
                     )
                 }
             },
             text = {
-                Column {
-                    Text(
-                        text = "আপনি সফলভাবে Watch Ad & Earn কাজটি সম্পন্ন করেছেন!",
-                        fontSize = 13.sp,
-                        color = Color(0xFF334155)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Surface(
-                        color = Color(0xFFEFF6FF),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "অর্জিত রিওয়ার্ড:",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                color = Color(0xFF1E40AF)
-                            )
-                            Text(
-                                text = "+৳${String.format(java.util.Locale.US, "%.2f", lastRewardAmount)}",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 16.sp,
-                                color = Color(0xFF10B981)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "আপনার বর্তমান ব্যালেন্স: ৳${String.format(java.util.Locale.US, "%.2f", currentUser?.balance ?: 1450.0)}",
-                        fontSize = 12.sp,
-                        color = Color(0xFF64748B)
-                    )
-                }
+                Text(
+                    text = "ডলার ইনকাম ওয়েবসাইট সংক্রান্ত যেকোনো জিজ্ঞাসা বা ভেরিফিকেশনের জন্য আমাদের সাপোর্ট সেন্টারে যোগাযোগ করুন। শর্ত পূরণ হলে আপনার একাউন্টে স্বয়ংক্রিয়ভাবে নোটিফিকেশন পৌঁছে যাবে।",
+                    fontSize = 13.sp,
+                    color = Color(0xFF334155),
+                    lineHeight = 19.sp
+                )
             },
             confirmButton = {
                 Button(
-                    onClick = { showSuccessRewardDialog = false },
+                    onClick = { showInfoNoticeDialog = false },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0055D2)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("ধন্যবাদ 🤑")
+                    Text("ঠিক আছে")
                 }
             }
         )
+    }
+}
+
+// -------------------------------------------------------------
+// STAT CARD (2x2 GRID ITEM)
+// -------------------------------------------------------------
+@Composable
+private fun StatCard(
+    number: String,
+    numberColor: Color,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(2.dp, Color(0xFFF59E0B)), // Warm yellow/gold border
+        modifier = modifier.height(82.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = number,
+                color = numberColor,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = label,
+                color = Color.Black,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
